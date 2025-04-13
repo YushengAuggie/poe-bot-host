@@ -1,0 +1,368 @@
+"""
+Tests for the BaseBot class.
+"""
+
+import pytest
+import asyncio
+import json
+from typing import AsyncGenerator, List, Dict, Any, cast
+from fastapi_poe.types import QueryRequest, PartialResponse, MetaResponse
+from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
+
+# Use unique path for each test instance
+test_instance_counter = 0
+
+class TestBot(BaseBot):
+    """Test bot implementation for testing."""
+    
+    bot_name = "TestBot"
+    bot_description = "Test bot for unit testing"
+    version = "1.0.0"
+    
+    def __init__(self, **kwargs):
+        global test_instance_counter
+        test_instance_counter += 1
+        path = f"/testbot_{test_instance_counter}"
+        super().__init__(path=path, **kwargs)
+    
+    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Process the message and return a response."""
+        # Extract the content from the query directly for testing
+        # This is only for the test - the real extraction happens in the base class
+        content = message
+        
+        if content == "error":
+            raise BotError("Test error")
+        elif content == "error_no_retry":
+            raise BotErrorNoRetry("Test error no retry")
+        elif content == "exception":
+            raise Exception("Test exception")
+        elif content == "stream":
+            # Test streaming multiple responses
+            for i in range(3):
+                yield PartialResponse(text=f"Chunk {i+1}: {message}")
+                await asyncio.sleep(0.01)  # Small delay to simulate streaming
+        elif content == "bot info":
+            # Should be handled by base class
+            yield PartialResponse(text="This should be overridden")
+        else:
+            yield PartialResponse(text=f"TestBot: {message}")
+
+class TestBotWithSettings(BaseBot):
+    """Test bot with custom settings."""
+    
+    bot_name = "SettingsBot"
+    bot_description = "Test bot with custom settings"
+    version = "2.0.0"
+    
+    # Custom settings
+    max_message_length = 100
+    stream_response = False
+    
+    def __init__(self, **kwargs):
+        global test_instance_counter
+        test_instance_counter += 1
+        path = f"/settingsbot_{test_instance_counter}"
+        super().__init__(path=path, **kwargs)
+
+@pytest.fixture
+def test_bot():
+    """Fixture for creating a TestBot instance."""
+    return TestBot()
+
+@pytest.fixture
+def settings_bot():
+    """Fixture for creating a TestBotWithSettings instance."""
+    return TestBotWithSettings()
+
+@pytest.fixture
+def normal_query():
+    """Create a standard query with regular content."""
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "hello"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+
+@pytest.fixture
+def error_query():
+    """Create a query that should trigger a BotError."""
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "error"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+
+@pytest.fixture
+def error_no_retry_query():
+    """Create a query that should trigger a BotErrorNoRetry."""
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "error_no_retry"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+
+@pytest.fixture
+def exception_query():
+    """Create a query that should trigger a general exception."""
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "exception"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+
+@pytest.fixture
+def stream_query():
+    """Create a query that should trigger a streaming response."""
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "stream"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+
+@pytest.fixture
+def bot_info_query():
+    """Create a query that requests bot info."""
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "bot info"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+
+# Helper function to collect responses
+async def collect_responses(bot, query):
+    """Collect all responses from a bot for a given query."""
+    responses = []
+    async for response in bot.get_response(query):
+        responses.append(response)
+    return responses
+
+@pytest.mark.asyncio
+async def test_bot_initialization():
+    """Test that a bot initializes correctly with default values."""
+    bot = TestBot()
+    
+    # Check bot attributes
+    assert bot.bot_name == "TestBot"
+    assert bot.bot_description == "Test bot for unit testing"
+    assert bot.version == "1.0.0"
+    assert bot.max_message_length == 2000  # Default value
+    assert bot.stream_response is True  # Default value
+
+@pytest.mark.asyncio
+async def test_bot_custom_settings():
+    """Test that a bot can be initialized with custom settings."""
+    bot = TestBotWithSettings()
+    
+    # Check custom settings
+    assert bot.bot_name == "SettingsBot"
+    assert bot.max_message_length == 100  # Custom value
+    assert bot.stream_response is False  # Custom value
+
+@pytest.mark.asyncio
+async def test_bot_create_with_settings():
+    """Test bot creation with additional settings."""
+    settings = {
+        "max_message_length": 500,
+        "stream_response": False
+    }
+    bot = TestBot(settings=settings)
+    
+    # Check settings were applied
+    assert bot.max_message_length == 500
+    assert bot.stream_response is False
+
+@pytest.mark.asyncio
+async def test_process_normal_message(test_bot, normal_query):
+    """Test processing a normal message."""
+    responses = await collect_responses(test_bot, normal_query)
+    
+    # Check response
+    assert len(responses) == 1
+    assert isinstance(responses[0], PartialResponse)
+    assert "TestBot: " in responses[0].text
+    assert "hello" in responses[0].text
+
+@pytest.mark.asyncio
+async def test_process_bot_error(test_bot):
+    """Test processing a message that raises a BotError."""
+    # Create a query that triggers an error
+    query = QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "error"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+    
+    # Collect responses
+    responses = await collect_responses(test_bot, query)
+    
+    # The extract_message should return "error" which should trigger BotError
+    assert len(responses) == 1
+    assert "Test error" in responses[0].text
+    assert "please try again" in responses[0].text.lower()
+
+@pytest.mark.asyncio
+async def test_process_bot_error_no_retry(test_bot, error_no_retry_query):
+    """Test processing a message that raises a BotErrorNoRetry."""
+    responses = await collect_responses(test_bot, error_no_retry_query)
+    
+    assert len(responses) == 1
+    assert "Test error no retry" in responses[0].text
+    assert "please try something else" in responses[0].text.lower()
+
+@pytest.mark.asyncio
+async def test_process_exception(test_bot, exception_query):
+    """Test processing a message that raises a general exception."""
+    responses = await collect_responses(test_bot, exception_query)
+    
+    assert len(responses) == 1
+    assert "unexpected error occurred" in responses[0].text.lower()
+
+@pytest.mark.asyncio
+async def test_streaming_response(test_bot, stream_query):
+    """Test streaming multiple response chunks."""
+    responses = await collect_responses(test_bot, stream_query)
+    
+    assert len(responses) == 3
+    assert "Chunk 1" in responses[0].text
+    assert "Chunk 2" in responses[1].text
+    assert "Chunk 3" in responses[2].text
+
+@pytest.mark.asyncio
+async def test_bot_info_request(test_bot, bot_info_query):
+    """Test requesting bot info metadata."""
+    responses = await collect_responses(test_bot, bot_info_query)
+    
+    assert len(responses) == 1
+    
+    # Parse the JSON response
+    info = json.loads(responses[0].text)
+    
+    # Check metadata values
+    assert info["name"] == "TestBot"
+    assert info["description"] == "Test bot for unit testing"
+    assert info["version"] == "1.0.0"
+    assert "settings" in info
+    assert info["settings"]["max_message_length"] == 2000
+    assert info["settings"]["stream_response"] is True
+
+@pytest.mark.asyncio
+async def test_extract_message_formats():
+    """Test that _extract_message handles different query formats correctly."""
+    bot = TestBot()
+    
+    # Test list format (new format)
+    query1 = QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "test message"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+    
+    # Test string format (old format)
+    query2 = QueryRequest(
+        version="1.0",
+        type="query",
+        query="old format message",
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+    
+    # Test empty list
+    query3 = QueryRequest(
+        version="1.0",
+        type="query",
+        query=[],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+    
+    # Extract messages
+    msg1 = bot._extract_message(query1)
+    msg2 = bot._extract_message(query2)
+    msg3 = bot._extract_message(query3)
+    
+    # Verify results
+    assert "test message" in msg1
+    assert "old format message" in msg2
+    assert msg3  # Should not be empty/None even with empty input
+
+@pytest.mark.asyncio
+async def test_message_validation():
+    """Test that message validation works correctly."""
+    bot = TestBot()
+    original_max_length = bot.max_message_length
+    
+    try:
+        # Set a very short max length temporarily
+        bot.max_message_length = 10
+        
+        # Check valid message
+        valid, _ = bot._validate_message("short")
+        assert valid is True
+        
+        # Check too long message
+        valid, error = bot._validate_message("this message is way too long for the limit")
+        assert valid is False
+        assert "too long" in error.lower()
+        assert "10" in error  # Should mention the limit
+    
+    finally:
+        # Restore original setting
+        bot.max_message_length = original_max_length
+
+@pytest.mark.asyncio
+async def test_meta_response():
+    """Test specialized response types."""
+    class MetaBot(TestBot):
+        async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+            if message == "meta":
+                yield MetaResponse(content={"test_key": "test_value"})
+            else:
+                yield PartialResponse(text="Not meta")
+    
+    bot = MetaBot()
+    
+    # Create meta query
+    meta_query = QueryRequest(
+        version="1.0",
+        type="query",
+        query=[{"role": "user", "content": "meta"}],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message"
+    )
+    
+    # Get responses
+    responses = await collect_responses(bot, meta_query)
+    
+    # Verify meta response
+    assert len(responses) == 1
+    assert isinstance(responses[0], MetaResponse)
+    meta_content = cast(MetaResponse, responses[0]).content
+    assert meta_content.get("test_key") == "test_value"
