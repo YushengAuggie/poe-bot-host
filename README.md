@@ -1,12 +1,12 @@
-# Poe Bots Framework
+# Poe Bot Host
 
 English | [简体中文](README.zh-CN.md)
 
-A multi-bot framework for the Poe platform.
+A multi-bot hosting framework for the Poe platform.
 
 ## Overview
 
-The Poe Bots Framework is a comprehensive platform for creating, testing, deploying, and managing multiple bots on the Poe platform. This framework simplifies the process of developing bots by providing:
+The Poe Bot Host is a comprehensive platform for creating, testing, deploying, and managing multiple bots on the Poe platform. This framework simplifies the process of developing and hosting bots by providing:
 
 - A unified API for hosting multiple bots
 - A robust base bot architecture with error handling

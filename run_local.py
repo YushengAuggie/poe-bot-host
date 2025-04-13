@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Run the Poe bots locally for testing.
+Run the Poe Bot Host locally for testing.
 
 This script provides a command-line interface for running the Poe bots
 locally with options for debugging, auto-reload, and custom host/port.

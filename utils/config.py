@@ -1,5 +1,5 @@
 """
-Configuration module for the Poe Bots Framework.
+Configuration module for the Poe Bot Host.
 
 This module provides a centralized configuration system for the framework,
 loading settings from environment variables and configuration files.
@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger("poe_bots.config")
 
 class Settings:
-    """Configuration settings for the Poe Bots Framework."""
+    """Configuration settings for the Poe Bot Host."""
     
     # API Settings
     API_HOST: str = os.environ.get("POE_API_HOST", "0.0.0.0")

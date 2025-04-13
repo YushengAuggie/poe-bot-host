@@ -1,5 +1,5 @@
 """
-Main application entry point for the Poe Bots Framework.
+Main application entry point for the Poe Bot Host.
 
 This module creates and configures the FastAPI application for hosting 
 multiple Poe bots, both locally and deployed on Modal.
