@@ -14,6 +14,10 @@ The Poe Bot Host is a comprehensive platform for creating, testing, deploying, a
 - Comprehensive testing tools
 - Simplified deployment process with Modal integration
 - Standardized logging and error reporting
+- Multiple example bots with different capabilities:
+  - Basic bots (Echo, Reverse, Uppercase)
+  - Advanced bots (BotCaller, Weather, WebSearch)
+  - Functional bots (Calculator, Function Calling, File Analyzer)
 
 ### Documentation
 
@@ -204,6 +208,29 @@ If you have the Poe client installed:
 ```bash
 poe-api test_bot http://localhost:8000/echobot "Hello, world!"
 ```
+
+## Included Bots
+
+The framework comes with several example bots that demonstrate different capabilities:
+
+### Basic Bots
+
+- **EchoBot**: Echoes back the user's message
+- **ReverseBot**: Returns the user's message in reverse
+- **UppercaseBot**: Converts the user's message to uppercase
+- **TemplateBot**: A template for creating new bots
+
+### Advanced Bots
+
+- **BotCallerBot**: A bot that can call other bots in the framework
+- **WeatherBot**: Provides weather information for any location
+- **WebSearchBot**: Searches the web for information
+
+### Functional Bots
+
+- **CalculatorBot**: Performs various mathematical calculations
+- **FunctionCallingBot**: Demonstrates function calling capabilities
+- **FileAnalyzerBot**: Analyzes uploaded files and provides statistics
 
 ## Creating a New Bot
 
