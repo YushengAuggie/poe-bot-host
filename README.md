@@ -42,8 +42,8 @@ The Poe Bot Host is a comprehensive platform for creating, testing, deploying, a
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/poe-bots.git
-   cd poe-bots
+   git clone https://github.com/YushengAuggie/poe-bot-host.git
+   cd poe-bot-host
    ```
 
 2. Create a virtual environment:
@@ -338,7 +338,7 @@ class ErrorHandlingBot(BaseBot):
 
 2. Install the Modal client in your environment:
    ```bash
-   pip install modal
+   pip install modal-client
    ```
 
 3. Authenticate with Modal by running:
@@ -407,8 +407,8 @@ Now that your API is deployed, you can create bots on Poe that connect to your A
 1. In the bot creation form, scroll down to "Server Bot Settings" and select "Server bot" as the bot type
 2. Configure the API:
    - **Server Endpoint**: Your Modal deployment URL + the specific bot path
-     - Format: `https://yourname--poe-bots-fastapi-app.modal.run/botname`
-     - Example for EchoBot: `https://yourname--poe-bots-fastapi-app.modal.run/echobot`
+     - Format: `https://yourusername--poe-bots-fastapi-app.modal.run/botname`
+     - Example for EchoBot: `https://yourusername--poe-bots-fastapi-app.modal.run/echobot`
      - Note that the path is the lowercase version of your bot's name
    - **API Protocol**: Select "Poe Protocol"
    - **API Key Protection**: Select "No protection" (or configure an API key if you've set one up)

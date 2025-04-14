@@ -1,6 +1,6 @@
-# Poe Bots Framework Quick Start Guide
+# Poe Bot Host Quick Start Guide
 
-This guide will help you quickly get started with the Poe Bots Framework.
+This guide will help you quickly get started with the Poe Bot Host.
 
 ## Setup in 5 Minutes
 
@@ -9,8 +9,8 @@ This guide will help you quickly get started with the Poe Bots Framework.
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/poe-bots-framework/poe-bots.git
-cd poe-bots
+git clone https://github.com/YushengAuggie/poe-bot-host.git
+cd poe-bot-host
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -92,7 +92,7 @@ Make note of the deployment URL.
 1. Go to [creator.poe.com](https://creator.poe.com/)
 2. Click "Create Bot"
 3. Set "Server Endpoint" to your Modal URL + bot name (lowercase)
-   Example: `https://yourusername--poe-bots-fastapi-app.modal.run/myawesomebot`
+   Example: `https://yourusername--poe-bot-host-fastapi-app.modal.run/myawesomebot`
 4. Set API Protocol to "Poe Protocol"
 5. Save and test your bot
 
@@ -127,5 +127,5 @@ make lint
 modal deploy app.py
 
 # Check Modal logs
-modal app logs poe-bots
+modal app logs poe-bot-host
 ```

@@ -1,4 +1,4 @@
-# Poe 机器人框架
+# Poe Bot Host
 
 [English](README.md) | 简体中文
 
@@ -38,8 +38,8 @@ Poe 机器人框架是一个全面的平台，用于创建、测试、部署和�
 
 1. 克隆仓库：
    ```bash
-   git clone https://github.com/poe-bots-framework/poe-bots.git
-   cd poe-bots
+   git clone https://github.com/YushengAuggie/poe-bot-host.git
+   cd poe-bot-host
    ```
 
 2. 创建虚拟环境：

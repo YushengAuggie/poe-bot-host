@@ -1,4 +1,4 @@
-# Deploying Poe Bots: A Step-by-Step Guide
+# Deploying Poe Bot Host: A Step-by-Step Guide
 
 This guide walks through the complete process of deploying your Poe bots to Modal and setting them up on the Poe platform. These instructions have been verified to work as of April 2025.
 
@@ -8,7 +8,7 @@ Before starting, make sure you have:
 
 1. A [Modal](https://modal.com/) account
 2. A [Poe](https://poe.com/) account
-3. Your Poe Bots Framework code ready to deploy
+3. Your Poe Bot Host code ready to deploy
 4. Python 3.7+ installed on your system
 
 ## Part 1: Deploying to Modal
@@ -39,10 +39,10 @@ Before starting, make sure you have:
    The output will look something like this:
    ```
    Deploying app.py...
-   ✓ Created app 'poe-bots'. Visit it at https://modal.com/apps/poe-bots
+   ✓ Created app 'poe-bot-host'. Visit it at https://modal.com/apps/poe-bot-host
    ✓ Created function 'fastapi_app'
-   ✓ Created web endpoint 'https://yourusername--poe-bots-fastapi-app.modal.run'
-   Deployment complete! Your Modal app is live at https://yourusername--poe-bots-fastapi-app.modal.run
+   ✓ Created web endpoint 'https://yourusername--poe-bot-host-fastapi-app.modal.run'
+   Deployment complete! Your Modal app is live at https://yourusername--poe-bot-host-fastapi-app.modal.run
    ```
 
    Make note of the URL - you'll need it to configure your bots on Poe.
@@ -53,7 +53,7 @@ Verify that your deployment works by testing the following endpoints:
 
 1. **Health check endpoint**:
    ```bash
-   curl https://yourusername--poe-bots-fastapi-app.modal.run/health
+   curl https://yourusername--poe-bot-host-fastapi-app.modal.run/health
    ```
    
    Expected response:
@@ -73,7 +73,7 @@ Verify that your deployment works by testing the following endpoints:
 
 2. **Bot list endpoint**:
    ```bash
-   curl https://yourusername--poe-bots-fastapi-app.modal.run/bots
+   curl https://yourusername--poe-bot-host-fastapi-app.modal.run/bots
    ```
    
    Expected response:
@@ -109,8 +109,8 @@ Fill in the basic details for your bot:
 2. Select "Server bot" as the bot type
 3. Configure the API:
    - **Server Endpoint**: Your Modal deployment URL + the specific bot path
-     - Format: `https://yourusername--poe-bots-fastapi-app.modal.run/botname`
-     - Example for EchoBot: `https://yourusername--poe-bots-fastapi-app.modal.run/echobot`
+     - Format: `https://yourusername--poe-bot-host-fastapi-app.modal.run/botname`
+     - Example for EchoBot: `https://yourusername--poe-bot-host-fastapi-app.modal.run/echobot`
      - Note: Use lowercase for the bot name in the URL
      - Important: Make sure there are no trailing slashes at the end of the URL
    - **API Protocol**: Select "Poe Protocol" from the dropdown
@@ -148,7 +148,7 @@ If your bot doesn't respond or you encounter errors, refer to the troubleshootin
 If your Modal deployment fails:
 
 1. **Check your code**: Ensure there are no syntax errors or import issues
-2. **Review logs**: Use `modal app logs poe-bots` to see detailed error messages
+2. **Review logs**: Use `modal app logs poe-bot-host` to see detailed error messages
 3. **Verify requirements**: Make sure all required packages are in requirements.txt
 4. **Check Python version**: Modal uses Python 3.10 by default
 
@@ -159,11 +159,11 @@ If your bot isn't responding correctly on Poe:
 1. **Verify URL**: Double-check the server endpoint URL is correct
    - Ensure there are no trailing slashes at the end of the URL
    - Confirm that the bot name in the URL is lowercase
-   - For example: `https://yourusername--poe-bots-fastapi-app.modal.run/echobot`
+   - For example: `https://yourusername--poe-bot-host-fastapi-app.modal.run/echobot`
 
 2. **Test API directly** using curl to see if your deployment works:
    ```bash
-   curl -X POST "https://yourusername--poe-bots-fastapi-app.modal.run/echobot" \
+   curl -X POST "https://yourusername--poe-bot-host-fastapi-app.modal.run/echobot" \
      -H "Content-Type: application/json" \
      -d '{
        "version": "1.0",
@@ -180,7 +180,7 @@ If your bot isn't responding correctly on Poe:
 
 3. **Check Modal logs** to see if your server is receiving requests:
    ```bash
-   modal app logs poe-bots
+   modal app logs poe-bot-host
    ```
 
 4. **Check API protocol**: Verify you selected "Poe Protocol" in the bot settings
@@ -214,7 +214,7 @@ If your bot isn't responding correctly on Poe:
 ### 5.1 Modal Dashboard
 
 1. Visit [modal.com/apps](https://modal.com/apps) to see your apps
-2. Click on your `poe-bots` app to view detailed metrics
+2. Click on your `poe-bot-host` app to view detailed metrics
 3. Monitor usage, errors, and performance
 
 ### 5.2 Poe Analytics
