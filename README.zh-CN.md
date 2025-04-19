@@ -197,14 +197,6 @@ curl -X POST "http://localhost:8000/echobot" \
   }'
 ```
 
-### 使用 Poe 客户端测试
-
-如果您已安装 Poe 客户端：
-
-```bash
-poe-api test_bot http://localhost:8000/echobot "你好，世界！"
-```
-
 ## 创建新机器人
 
 ### 使用模板

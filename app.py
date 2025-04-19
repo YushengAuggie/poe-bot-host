@@ -81,7 +81,9 @@ app = App(settings.MODAL_APP_NAME)
 image = (
     Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
-    .add_local_python_source("utils", "bots", "tests")  # Explicitly add local modules
+    .copy_local_dir("utils", "/root/utils")
+    .copy_local_dir("bots", "/root/bots")
+    .copy_local_dir("tests", "/root/tests")
 )
 
 @app.function(image=image)

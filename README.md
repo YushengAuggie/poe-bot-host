@@ -201,14 +201,6 @@ curl -X POST "http://localhost:8000/echobot" \
   }'
 ```
 
-### Testing with the Poe Client
-
-If you have the Poe client installed:
-
-```bash
-poe-api test_bot http://localhost:8000/echobot "Hello, world!"
-```
-
 ## Included Bots
 
 The framework comes with several example bots that demonstrate different capabilities:

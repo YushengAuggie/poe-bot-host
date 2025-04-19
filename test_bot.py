@@ -79,26 +79,39 @@ def fetch_openapi_schema(base_url: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Error fetching OpenAPI schema: {str(e)}")
         return None
 
-def test_bot(base_url: str, bot_name: str, message: str) -> Dict[str, Any]:
+def test_bot(base_url: str, bot_name: str, message: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """Test a bot with a sample message.
     
     Args:
         base_url: Base URL of the API
         bot_name: Name of the bot to test
         message: Message to send to the bot
+        api_key: Optional API key to use
         
     Returns:
         Bot response
     """
     url = f"{base_url}/{bot_name.lower()}"
     
+    headers = {
+        "Content-Type": "application/json",
+    }
+    
+    # Add API key if provided
+    if api_key:
+        headers["X-Poe-API-Key"] = api_key
+    # Also try with Authorization header as a fallback
+    elif api_key is None:  # Only add this for the default case
+        headers["Authorization"] = "Bearer dummytoken"  # Since allow_without_key=True in our bot
+    
     try:
+        # Log the exact request we're making
+        logger.debug(f"Testing bot at URL: {url}")
+        logger.debug(f"Headers: {headers}")
+        
         response = requests.post(
             url,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer dummytoken"  # Since allow_without_key=True in our bot
-            },
+            headers=headers,
             json={
                 "version": "1.0",
                 "type": "query",
@@ -272,5 +285,70 @@ def main():
                 else:
                     print(f"Error: {result.get('error', 'Unknown error')}")
     
+def test_modal_deployment():
+    """Test the Modal deployment specifically."""
+    modal_url = "https://aibot2025us--aibot2025us-poe-bots-fastapi-app.modal.run"
+    
+    print("\n======================================================")
+    print("           MODAL DEPLOYMENT TEST TOOL                ")
+    print("======================================================\n")
+    
+    # Test health endpoint
+    print("Testing health endpoint...")
+    health = check_health(modal_url)
+    print(json.dumps(health, indent=2))
+    print("\n" + "-" * 60)
+    
+    # Get available bots
+    print("Getting available bots...")
+    bots = get_available_bots(modal_url)
+    print(json.dumps(bots, indent=2))
+    print("\n" + "-" * 60)
+    
+    # Test a simple bot with different auth methods
+    if bots:
+        bot_to_test = "EchoBot" if "EchoBot" in bots else list(bots.keys())[0]
+        message = "Hello from Modal deployment test!"
+        
+        print(f"Testing bot: {bot_to_test}")
+        print(f"Message: {message}")
+        
+        # Test with authorization header
+        print("\nTesting with Authorization header...")
+        result = test_bot(modal_url, bot_to_test, message)
+        print(f"Status Code: {result['status_code']}")
+        if result['content_type'] == "json":
+            print("Response JSON:")
+            print(json.dumps(result['content'], indent=2))
+        else:
+            print("Response Content:")
+            print(result['content'])
+        
+        # Test with X-Poe-API-Key header
+        print("\nTesting with X-Poe-API-Key header...")
+        result = test_bot(modal_url, bot_to_test, message, api_key="aibot2025us_api_key_12345")
+        print(f"Status Code: {result['status_code']}")
+        if result['content_type'] == "json":
+            print("Response JSON:")
+            print(json.dumps(result['content'], indent=2))
+        else:
+            print("Response Content:")
+            print(result['content'])
+        
+        # Test with no auth headers
+        print("\nTesting with no auth headers...")
+        result = test_bot(modal_url, bot_to_test, message, api_key="")
+        print(f"Status Code: {result['status_code']}")
+        if result['content_type'] == "json":
+            print("Response JSON:")
+            print(json.dumps(result['content'], indent=2))
+        else:
+            print("Response Content:")
+            print(result['content'])
+
 if __name__ == "__main__":
-    main()
+    # Check if we want to test the Modal deployment specifically
+    if len(sys.argv) > 1 and sys.argv[1] == "--modal":
+        test_modal_deployment()
+    else:
+        main()

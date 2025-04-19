@@ -114,7 +114,8 @@ Fill in the basic details for your bot:
      - Note: Use lowercase for the bot name in the URL
      - Important: Make sure there are no trailing slashes at the end of the URL
    - **API Protocol**: Select "Poe Protocol" from the dropdown
-   - **API Key Protection**: Select "No protection" (or configure an API key if you've set one up)
+   - **API Key Protection**: Select "Server Authorization"
+   - **Authentication Token**: Enter `Bearer dummytoken`
 
 ### 2.4 Adding Bot Metadata (Optional but Recommended)
 
