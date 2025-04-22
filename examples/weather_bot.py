@@ -11,10 +11,14 @@ This bot demonstrates how to create a more sophisticated bot with:
 import random
 import json
 import asyncio
+import logging
 from datetime import datetime, timedelta
-from typing import AsyncGenerator, Dict, Any, Optional, Tuple
-from fastapi_poe.types import PartialResponse, QueryRequest
+from typing import AsyncGenerator, Dict, Any, Optional, Tuple, Union
+from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
+
+# Get logger
+logger = logging.getLogger(__name__)
 
 class WeatherBot(BaseBot):
     """A bot that provides simulated weather information."""
@@ -35,11 +39,23 @@ class WeatherBot(BaseBot):
         "Snowy", "Foggy", "Windy", "Clear"
     ]
     
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """Process the user's message and generate a weather report."""
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """Process the query and generate a weather report response."""
         try:
+            # Extract the query contents
+            user_message = self._extract_message(query)
+            
+            # Log the extracted message
+            logger.debug(f"[{self.bot_name}] Received message: {user_message}")
+            
+            # Add metadata about the bot if requested
+            if user_message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
+                
             # Extract location from message
-            location = self._parse_location(message)
+            location = self._parse_location(user_message)
             
             if not location:
                 yield PartialResponse(text="Please provide a city name for the weather forecast. For example: 'Weather in London'")
@@ -62,8 +78,9 @@ class WeatherBot(BaseBot):
                 yield PartialResponse(text=f"Sorry, I couldn't get the weather for {location}: {str(e)}")
                 
         except Exception as e:
-            # Handle unexpected errors
-            yield PartialResponse(text=f"An error occurred while processing your request: {str(e)}")
+            # Let the parent class handle errors
+            async for resp in super().get_response(query):
+                yield resp
     
     def _parse_location(self, message: str) -> Optional[str]:
         """Extract location from the user's message."""
@@ -164,7 +181,13 @@ if __name__ == "__main__":
     
     async def test_bot():
         bot = WeatherBot()
-        query = QueryRequest(query="Weather in London", user_id="test_user")
+        # Use the new format for query
+        query = QueryRequest(
+            query=[{"role": "user", "content": "Weather in London"}],
+            user_id="test_user",
+            conversation_id="test_conversation",
+            message_id="test_message"
+        )
         
         print("Testing WeatherBot with 'Weather in London':")
         async for response in bot.get_response(query):

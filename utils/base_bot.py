@@ -75,6 +75,9 @@ class BaseBot(PoeBot):
     async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response.
         
+        Subclasses should override this method to implement their logic directly.
+        The default implementation provides error handling and basic command processing.
+        
         Args:
             query: The query from the user
             
@@ -95,9 +98,9 @@ class BaseBot(PoeBot):
                 yield PartialResponse(text=json.dumps(metadata, indent=2))
                 return
             
-            # Process the message and get a response
-            async for response_chunk in self._process_message(user_message, query):
-                yield response_chunk
+            # Default implementation just echoes the message
+            # Subclasses should override this method to implement their custom logic
+            yield PartialResponse(text=f"{user_message}")
                 
         except BotErrorNoRetry as e:
             # Log the error (non-retryable)
@@ -142,8 +145,13 @@ class BaseBot(PoeBot):
             if isinstance(query.query, list) and len(query.query) > 0:
                 # Handle structured messages (newer format)
                 last_message = query.query[-1]
-                if isinstance(last_message, dict) and "content" in last_message:
+                # Handle ProtocolMessage object with content attribute
+                if hasattr(last_message, "content"):
+                    return last_message.content
+                # Handle dict with content key
+                elif isinstance(last_message, dict) and "content" in last_message:
                     return last_message["content"]
+                # Fall back to string representation if needed
                 else:
                     return str(last_message)
             elif isinstance(query.query, str):
@@ -152,7 +160,9 @@ class BaseBot(PoeBot):
             else:
                 # Handle any other format
                 if hasattr(query.query, "__dict__"):
-                    return json.dumps(query.query)
+                    return json.dumps(query.query.__dict__)
+                elif hasattr(query.query, "content"):
+                    return query.query.content
                 else:
                     return str(query.query)
         except Exception as e:
@@ -176,8 +186,10 @@ class BaseBot(PoeBot):
         }
     
     async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """Process the message and generate a response.
-        This method should be overridden by subclasses.
+        """[DEPRECATED] Process the message and generate a response.
+        
+        DEPRECATED: This method is deprecated in favor of directly overriding get_response.
+        It is kept for backward compatibility but will be removed in a future version.
         
         Args:
             message: The extracted message from the user
@@ -186,8 +198,13 @@ class BaseBot(PoeBot):
         Yields:
             Response chunks as PartialResponse objects
         """
-        # Default implementation just echoes the message
-        yield PartialResponse(text=f"BaseBot received: {message}")
+        logger.warning(f"[{self.bot_name}] _process_message is deprecated, override get_response instead")
+        # Default implementation for backward compatibility, just forwards to get_response
+        # This will use the get_response of the superclass (BaseBot), not of the subclass,
+        # which is why subclasses should override get_response directly instead.
+        modified_query = query  # In a real backward compatibility layer, we might need to modify the query
+        async for response_chunk in super().get_response(modified_query):
+            yield response_chunk
         
     def _validate_message(self, message: str) -> Tuple[bool, Optional[str]]:
         """Validate the user's message.

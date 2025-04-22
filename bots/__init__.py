@@ -8,7 +8,7 @@ All bot classes are automatically loaded if they:
 To create a new bot:
 1. Create a new file in this directory
 2. Define a class that inherits from BaseBot
-3. Override _process_message to implement the bot's behavior
+3. Override get_response to implement the bot's behavior
 
 The bot will be automatically discovered and loaded when the app starts.
 """

@@ -10,8 +10,8 @@ import json
 import os
 import httpx
 from datetime import datetime
-from typing import AsyncGenerator, Dict, Any, List, Optional
-from fastapi_poe.types import PartialResponse, QueryRequest
+from typing import AsyncGenerator, Dict, Any, List, Optional, Union
+from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
@@ -167,13 +167,26 @@ class WeatherBot(BaseBot):
         
         return response
     
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """Process the user's location request and return weather information."""
-        message = message.strip()
-        
-        # Help command
-        if message.lower() in ["help", "?", "/help"]:
-            yield PartialResponse(text="""
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """Process the query and generate a response with weather information."""
+        try:
+            # Extract the query contents
+            user_message = self._extract_message(query)
+            
+            # Log the extracted message
+            logger.debug(f"[{self.bot_name}] Received message: {user_message}")
+            
+            # Add metadata about the bot if requested
+            if user_message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
+                
+            message = user_message.strip()
+            
+            # Help command
+            if message.lower() in ["help", "?", "/help"]:
+                yield PartialResponse(text="""
 ## 🌤️ Weather Bot
 
 I can provide weather information for any location around the world.
@@ -186,29 +199,34 @@ Just type a city or location name, for example:
 
 I'll give you the current weather conditions, temperature, and more.
 """)
-            return
-        
-        # Empty query
-        if not message:
-            yield PartialResponse(text="Please enter a location name. Type 'help' for instructions.")
-            return
-        
-        # Check for specific commands/keywords
-        if message.lower() in ["current location", "my location", "here"]:
-            yield PartialResponse(text="Please specify a location by name (e.g., 'New York', 'London, UK').")
-            return
-        
-        # Get weather data
-        try:
-            yield PartialResponse(text=f"Getting weather for {message}...\n\n")
+                return
             
-            weather_data = await self._get_weather(message)
-            formatted_weather = self._format_weather_data(weather_data)
+            # Empty query
+            if not message:
+                yield PartialResponse(text="Please enter a location name. Type 'help' for instructions.")
+                return
             
-            yield PartialResponse(text=formatted_weather)
+            # Check for specific commands/keywords
+            if message.lower() in ["current location", "my location", "here"]:
+                yield PartialResponse(text="Please specify a location by name (e.g., 'New York', 'London, UK').")
+                return
             
-        except BotErrorNoRetry as e:
-            yield PartialResponse(text=f"Error: {str(e)}")
+            # Get weather data
+            try:
+                yield PartialResponse(text=f"Getting weather for {message}...\n\n")
+                
+                weather_data = await self._get_weather(message)
+                formatted_weather = self._format_weather_data(weather_data)
+                
+                yield PartialResponse(text=formatted_weather)
+                
+            except BotErrorNoRetry as e:
+                yield PartialResponse(text=f"Error: {str(e)}")
+            except Exception as e:
+                yield PartialResponse(text=f"Weather error: {str(e)}")
+                return
+                
         except Exception as e:
-            yield PartialResponse(text=f"Weather error: {str(e)}")
-            return
+            # Let the parent class handle errors
+            async for resp in super().get_response(query):
+                yield resp

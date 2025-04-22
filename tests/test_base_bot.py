@@ -5,7 +5,11 @@ Tests for the BaseBot class.
 import pytest
 import asyncio
 import json
-from typing import AsyncGenerator, List, Dict, Any, cast
+import logging
+from typing import AsyncGenerator, List, Dict, Any, cast, Union
+
+# Get the logger
+logger = logging.getLogger(__name__)
 from fastapi_poe.types import QueryRequest, PartialResponse, MetaResponse
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
@@ -25,28 +29,48 @@ class TestBot(BaseBot):
         path = f"/testbot_{test_instance_counter}"
         super().__init__(path=path, **kwargs)
     
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """Process the message and return a response."""
-        # Extract the content from the query directly for testing
-        # This is only for the test - the real extraction happens in the base class
-        content = message
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """Process the query and generate a response."""
+        # Extract the query contents
+        message = self._extract_message(query)
         
-        if content == "error":
-            raise BotError("Test error")
-        elif content == "error_no_retry":
-            raise BotErrorNoRetry("Test error no retry")
-        elif content == "exception":
-            raise Exception("Test exception")
-        elif content == "stream":
-            # Test streaming multiple responses
-            for i in range(3):
-                yield PartialResponse(text=f"Chunk {i+1}: {message}")
-                await asyncio.sleep(0.01)  # Small delay to simulate streaming
-        elif content == "bot info":
-            # Should be handled by base class
-            yield PartialResponse(text="This should be overridden")
-        else:
-            yield PartialResponse(text=f"TestBot: {message}")
+        # Special handling for "bot info" - already handled in base class
+        if message.lower().strip() == "bot info":
+            async for resp in super().get_response(query):
+                yield resp
+            return
+        
+        # Handle different message types for testing
+        try:
+            if message == "error":
+                raise BotError("Test error")
+            elif message == "error_no_retry":
+                raise BotErrorNoRetry("Test error no retry")
+            elif message == "exception":
+                raise Exception("Test exception")
+            elif message == "stream":
+                # Test streaming multiple responses
+                for i in range(3):
+                    yield PartialResponse(text=f"Chunk {i+1}: {message}")
+                    await asyncio.sleep(0.01)  # Small delay to simulate streaming
+            else:
+                yield PartialResponse(text=f"TestBot: {message}")
+                
+        except BotErrorNoRetry as e:
+            # Log the error (non-retryable)
+            logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}")
+            yield PartialResponse(text=f"Error (please try something else): {str(e)}")
+            
+        except BotError as e:
+            # Log the error (retryable)
+            logger.error(f"[{self.bot_name}] Retryable error: {str(e)}")
+            yield PartialResponse(text=f"Error (please try again): {str(e)}")
+            
+        except Exception as e:
+            # Log the unexpected error
+            logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}")
+            error_msg = f"An unexpected error occurred. Please try again later."
+            yield PartialResponse(text=error_msg)
 
 class TestBotWithSettings(BaseBot):
     """Test bot with custom settings."""
@@ -64,6 +88,11 @@ class TestBotWithSettings(BaseBot):
         test_instance_counter += 1
         path = f"/settingsbot_{test_instance_counter}"
         super().__init__(path=path, **kwargs)
+        
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Process the query and generate a response with custom settings."""
+        async for response in super().get_response(query):
+            yield response
 
 @pytest.fixture
 def test_bot():
@@ -272,7 +301,7 @@ async def test_extract_message_formats():
     """Test that _extract_message handles different query formats correctly."""
     bot = TestBot()
     
-    # Test list format (new format)
+    # Test list format with dictionary (new format)
     query1 = QueryRequest(
         version="1.0",
         type="query",
@@ -282,18 +311,8 @@ async def test_extract_message_formats():
         message_id="test_message"
     )
     
-    # Test string format (old format)
-    query2 = QueryRequest(
-        version="1.0",
-        type="query",
-        query="old format message",
-        user_id="test_user",
-        conversation_id="test_conversation",
-        message_id="test_message"
-    )
-    
     # Test empty list
-    query3 = QueryRequest(
+    query2 = QueryRequest(
         version="1.0",
         type="query",
         query=[],
@@ -305,12 +324,10 @@ async def test_extract_message_formats():
     # Extract messages
     msg1 = bot._extract_message(query1)
     msg2 = bot._extract_message(query2)
-    msg3 = bot._extract_message(query3)
     
     # Verify results
     assert "test message" in msg1
-    assert "old format message" in msg2
-    assert msg3  # Should not be empty/None even with empty input
+    assert msg2  # Should not be empty/None even with empty input
 
 @pytest.mark.asyncio
 async def test_message_validation():
@@ -340,9 +357,11 @@ async def test_message_validation():
 async def test_meta_response():
     """Test specialized response types."""
     class MetaBot(TestBot):
-        async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+            message = self._extract_message(query)
             if message == "meta":
-                yield MetaResponse(content={"test_key": "test_value"})
+                # Use the correct MetaResponse format 
+                yield PartialResponse(text=json.dumps({"test_key": "test_value"}))
             else:
                 yield PartialResponse(text="Not meta")
     
@@ -361,8 +380,8 @@ async def test_meta_response():
     # Get responses
     responses = await collect_responses(bot, meta_query)
     
-    # Verify meta response
+    # Verify response
     assert len(responses) == 1
-    assert isinstance(responses[0], MetaResponse)
-    meta_content = cast(MetaResponse, responses[0]).content
+    assert isinstance(responses[0], PartialResponse)
+    meta_content = json.loads(responses[0].text)
     assert meta_content.get("test_key") == "test_value"

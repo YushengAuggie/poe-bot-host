@@ -8,8 +8,9 @@ and return formatted results.
 import logging
 import math
 import re
+import json
 from typing import AsyncGenerator, Dict, Any, List, Optional, Union, Tuple
-from fastapi_poe.types import PartialResponse, QueryRequest
+from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
@@ -205,46 +206,64 @@ I can perform various mathematical calculations. You can:
 Type a calculation to begin!
 """
     
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """Process the user's calculation request."""
-        message = message.strip()
-        
-        # Help command
-        if message.lower() in ["help", "?", "/help"]:
-            yield PartialResponse(text=self._get_help_text())
-            return
-        
-        # Empty query
-        if not message:
-            yield PartialResponse(text="Please enter a calculation. Type 'help' for instructions.")
-            return
-        
-        # Unit conversion
-        if message.lower().startswith("convert "):
-            result = self._handle_conversion(message)
-            yield PartialResponse(text=result)
-            return
-        
-        # Basic calculation
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """Process the query and generate a response for calculator functions."""
         try:
-            result = self._parse_expression(message)
+            # Extract the query contents
+            user_message = self._extract_message(query)
             
-            # Format the result
-            if isinstance(result, float):
-                # Handle very small numbers near zero
-                if abs(result) < 1e-10:
-                    result = 0
+            # Log the extracted message
+            logger.debug(f"[{self.bot_name}] Received message: {user_message}")
+            
+            # Add metadata about the bot if requested
+            if user_message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
                 
-                # Format with appropriate precision
-                if result.is_integer():
-                    formatted_result = str(int(result))
+            message = user_message.strip()
+            
+            # Help command
+            if message.lower() in ["help", "?", "/help"]:
+                yield PartialResponse(text=self._get_help_text())
+                return
+            
+            # Empty query
+            if not message:
+                yield PartialResponse(text="Please enter a calculation. Type 'help' for instructions.")
+                return
+            
+            # Unit conversion
+            if message.lower().startswith("convert "):
+                result = self._handle_conversion(message)
+                yield PartialResponse(text=result)
+                return
+            
+            # Basic calculation
+            try:
+                result = self._parse_expression(message)
+                
+                # Format the result
+                if isinstance(result, float):
+                    # Handle very small numbers near zero
+                    if abs(result) < 1e-10:
+                        result = 0
+                    
+                    # Format with appropriate precision
+                    if result.is_integer():
+                        formatted_result = str(int(result))
+                    else:
+                        formatted_result = f"{result:.6f}".rstrip('0').rstrip('.')
                 else:
-                    formatted_result = f"{result:.6f}".rstrip('0').rstrip('.')
-            else:
-                formatted_result = str(result)
-            
-            yield PartialResponse(text=f"```\n{message} = {formatted_result}\n```")
-            
+                    formatted_result = str(result)
+                
+                yield PartialResponse(text=f"```\n{message} = {formatted_result}\n```")
+                
+            except Exception as e:
+                yield PartialResponse(text=f"Calculation error: {str(e)}")
+                return
+                
         except Exception as e:
-            yield PartialResponse(text=f"Calculation error: {str(e)}")
-            return
+            # Let the parent class handle errors
+            async for resp in super().get_response(query):
+                yield resp

@@ -53,8 +53,9 @@ cp bots/template_bot.py bots/my_awesome_bot.py
 Edit the file to implement your bot's logic:
 
 ```python
-from typing import AsyncGenerator
-from fastapi_poe.types import PartialResponse, QueryRequest
+import json
+from typing import AsyncGenerator, Union
+from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
 from utils.base_bot import BaseBot
 
 class MyAwesomeBot(BaseBot):
@@ -63,9 +64,18 @@ class MyAwesomeBot(BaseBot):
     bot_name = "MyAwesomeBot"
     bot_description = "A really cool bot that does awesome things"
     
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        # Extract the user message
+        user_message = self._extract_message(query)
+        
+        # Handle bot info requests (required)
+        if user_message.lower().strip() == "bot info":
+            metadata = self._get_bot_metadata()
+            yield PartialResponse(text=json.dumps(metadata, indent=2))
+            return
+            
         # Your custom logic here
-        response = f"You said: {message}\n\nHere's my awesome response!"
+        response = f"You said: {user_message}\n\nHere's my awesome response!"
         yield PartialResponse(text=response)
 ```
 

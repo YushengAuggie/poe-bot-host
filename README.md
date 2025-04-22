@@ -232,12 +232,13 @@ The simplest way to create a new bot is to copy and modify the template:
 
 1. Copy `bots/template_bot.py` to `bots/your_bot_name.py`
 2. Modify the class name, bot name, and description
-3. Implement your logic in the `_process_message` method
+3. Implement your logic in the `get_response` method
 
 Example:
 ```python
-from typing import AsyncGenerator
-from fastapi_poe.types import PartialResponse, QueryRequest
+import json
+from typing import AsyncGenerator, Union
+from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
 from utils.base_bot import BaseBot
 
 class WeatherBot(BaseBot):
@@ -247,9 +248,18 @@ class WeatherBot(BaseBot):
     bot_description = "Provides weather information for specified locations"
     version = "1.0.0"
     
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        # Extract the message
+        user_message = self._extract_message(query)
+        
+        # Handle bot info requests
+        if user_message.lower().strip() == "bot info":
+            metadata = self._get_bot_metadata()
+            yield PartialResponse(text=json.dumps(metadata, indent=2))
+            return
+        
         # Parse the message to get location
-        location = message.strip()
+        location = user_message.strip()
         
         # In a real bot, you would call a weather API here
         weather_info = f"The weather in {location} is sunny with a high of 75°F."
