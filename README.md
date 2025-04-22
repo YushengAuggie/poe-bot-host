@@ -569,6 +569,37 @@ Always test your changes:
    - Run with debug mode: `./run_local.sh --debug`
    - Check logs for specific error messages
 
+## Continuous Integration and Quality Assurance
+
+The project uses GitHub Actions to run automated tests and code quality checks on every push and pull request.
+
+### CI/CD Pipeline
+
+The CI/CD pipeline runs:
+- Unit tests with pytest on multiple Python versions
+- Linting with ruff
+- Type checking with pyright
+
+You can check the status of the CI pipeline in the GitHub Actions tab of the repository.
+
+### Pre-Push Hook
+
+A pre-push hook is installed to run tests locally before pushing changes:
+
+```bash
+# The hook will automatically run tests before each push
+git push  # Tests will run automatically
+
+# If tests fail, the push will be aborted
+```
+
+To install the pre-push hook on a new clone:
+
+```bash
+# Make the pre-push hook executable
+chmod +x .git/hooks/pre-push
+```
+
 ## Resources
 
 - [Poe Documentation](https://creator.poe.com/docs)
