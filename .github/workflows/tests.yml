@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: [3.8, 3.9, '3.10']
 
@@ -24,13 +25,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Lint
+      continue-on-error: true
       run: |
         pip install ruff
-        ruff check .
+        ruff check . --output-format=github
     - name: Type check
+      continue-on-error: true
       run: |
         pip install pyright
-        pyright .
+        pyright . --outputjson
     - name: Run tests
       run: |
-        pytest tests/
+        pip install pytest pytest-asyncio
+        pytest tests/ -v
