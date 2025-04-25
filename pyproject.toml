@@ -16,7 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dependencies = [
     "fastapi-poe>=0.0.21",
     "modal-client>=0.52.4271",
@@ -42,14 +42,20 @@ target-version = ["py37", "py38", "py39", "py310", "py311"]
 [tool.ruff]
 target-version = "py37"
 line-length = 100
+
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
     "I",   # isort
 ]
-ignore = []
+ignore = [
+    "E501",  # line too long (managed by black)
+    "F841",  # local variable assigned but not used
+    "F401",  # imported but unused (will fix these later)
+]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["utils", "bots", "tests"]
 
 [tool.pyright]

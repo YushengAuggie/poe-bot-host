@@ -4,7 +4,7 @@ This is mainly for compatibility with older package managers.
 Modern Python packaging should use pyproject.toml instead.
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="poe_bots",
@@ -15,7 +15,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/poe-bots-framework/poe-bots",
     packages=find_packages(),
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=[
         "fastapi-poe>=0.0.21",
         "modal-client>=0.52.4271",

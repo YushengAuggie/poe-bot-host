@@ -2,16 +2,18 @@
 Tests for the BaseBot class.
 """
 
-import pytest
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator, List, Dict, Any, cast, Union
+from typing import AsyncGenerator, Union
+
+import pytest
+from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
+
+from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 # Get the logger
 logger = logging.getLogger(__name__)
-from fastapi_poe.types import QueryRequest, PartialResponse, MetaResponse
-from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 # Use unique path for each test instance
 test_instance_counter = 0
@@ -69,7 +71,7 @@ class TestBot(BaseBot):
         except Exception as e:
             # Log the unexpected error
             logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}")
-            error_msg = f"An unexpected error occurred. Please try again later."
+            error_msg = "An unexpected error occurred. Please try again later."
             yield PartialResponse(text=error_msg)
 
 class TestBotWithSettings(BaseBot):
