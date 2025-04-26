@@ -34,7 +34,7 @@ The Poe Bot Host is a comprehensive platform for creating, testing, deploying, a
 
 ### Prerequisites
 
-- Python 3.7+ installed
+- Python 3.8+ installed
 - A [Poe](https://poe.com/) account for testing and deployment
 - [Modal](https://modal.com/) account for cloud deployment (optional)
 
@@ -60,6 +60,11 @@ The Poe Bot Host is a comprehensive platform for creating, testing, deploying, a
    pip install -r requirements.txt
    ```
 
+5. (Optional) Install development dependencies:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
 ## Key Concepts
 
 ### Bot Architecture
@@ -83,12 +88,20 @@ poe_bots/
 ├── pyproject.toml      # Python project configuration
 ├── setup.py            # Package setup for compatibility
 ├── requirements.txt    # Python dependencies
+├── pyrightconfig.json  # Python type checking configuration
+├── pytest.ini          # Pytest configuration
 ├── bots/               # Bot implementations
 │   ├── __init__.py     # Package initialization
+│   ├── bot_caller_bot.py # Bot that calls other bots
+│   ├── calculator_bot.py # Calculator bot implementation
 │   ├── echo_bot.py     # Echo bot implementation
+│   ├── file_analyzer_bot.py # File analysis bot implementation
+│   ├── function_calling_bot.py # Function calling demonstration
 │   ├── reverse_bot.py  # Reverse bot implementation
+│   ├── template_bot.py # Template for creating new bots
 │   ├── uppercase_bot.py # Uppercase bot implementation
-│   └── template_bot.py # Template for creating new bots
+│   ├── weather_bot.py  # Weather information bot
+│   └── web_search_bot.py # Web search bot implementation
 ├── examples/           # Example bots and guides
 │   ├── README.md       # Examples documentation
 │   ├── standalone_echobot.py # Standalone bot example
@@ -97,8 +110,17 @@ poe_bots/
 ├── tests/              # Test suite
 │   ├── __init__.py     # Test package initialization
 │   ├── conftest.py     # Pytest configuration
+│   ├── test_app.py     # Tests for the main app
 │   ├── test_base_bot.py # Tests for BaseBot class
-│   └── test_bot_factory.py # Tests for BotFactory class
+│   ├── test_bot_caller_bot.py # Tests for BotCallerBot
+│   ├── test_bot_factory.py # Tests for BotFactory class
+│   ├── test_calculator_bot.py # Tests for CalculatorBot
+│   ├── test_config.py  # Tests for configuration
+│   ├── test_echo_bot.py # Tests for EchoBot
+│   ├── test_file_analyzer_bot.py # Tests for FileAnalyzerBot
+│   ├── test_function_calling_bot.py # Tests for FunctionCallingBot
+│   ├── test_weather_bot.py # Tests for WeatherBot
+│   └── test_web_search_bot.py # Tests for WebSearchBot
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
     ├── base_bot.py     # Base bot class with common functionality
@@ -225,15 +247,25 @@ The framework comes with several example bots that demonstrate different capabil
 
 ### Advanced Bots
 
-- **BotCallerBot**: A bot that can call other bots in the framework
+- **BotCallerBot**: A bot that can call other bots in the framework:
+  - Lists all available bots in the system
+  - Calls other bots with specified messages
+  - Supports command pattern for bot interaction
 - **WeatherBot**: Provides weather information for any location
 - **WebSearchBot**: Searches the web for information
 
 ### Functional Bots
 
 - **CalculatorBot**: Performs various mathematical calculations
-- **FunctionCallingBot**: Demonstrates function calling capabilities
-- **FileAnalyzerBot**: Analyzes uploaded files and provides statistics
+- **FunctionCallingBot**: Demonstrates function calling capabilities:
+  - Implements several functions (calculate, convert_units, get_current_time, generate_random_number)
+  - Shows how to define function specifications and parameters
+  - Demonstrates Poe API function calling protocol
+- **FileAnalyzerBot**: Analyzes uploaded files and provides statistics:
+  - Text extraction and analysis from uploaded files
+  - Support for various file formats (.txt, .csv, .md, .json, .yaml, code files)
+  - Detailed statistics for different file types
+  - Content preview functionality
 
 ## Creating a New Bot
 

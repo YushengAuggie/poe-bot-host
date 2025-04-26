@@ -14,6 +14,10 @@ Poe 机器人框架是一个全面的平台，用于创建、测试、部署和�
 - 全面的测试工具
 - 与 Modal 集成的简化部署流程
 - 标准化的日志记录和错误报告
+- 多个示例机器人与不同功能:
+  - 基础机器人（Echo, Reverse, Uppercase）
+  - 高级机器人（BotCaller, Weather, WebSearch）
+  - 功能性机器人（Calculator, Function Calling, File Analyzer）
 
 ### 文档
 
@@ -30,7 +34,7 @@ Poe 机器人框架是一个全面的平台，用于创建、测试、部署和�
 
 ### 前提条件
 
-- 安装 Python 3.7+
+- 安装 Python 3.8+
 - 用于测试和部署的 [Poe](https://poe.com/) 账户
 - 用于云部署的 [Modal](https://modal.com/) 账户（可选）
 
@@ -56,6 +60,11 @@ Poe 机器人框架是一个全面的平台，用于创建、测试、部署和�
    pip install -r requirements.txt
    ```
 
+5. (可选) 安装开发依赖：
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
 ## 核心概念
 
 ### 机器人架构
@@ -79,12 +88,20 @@ poe_bots/
 ├── pyproject.toml      # Python 项目配置
 ├── setup.py            # 兼容性包设置
 ├── requirements.txt    # Python 依赖
+├── pyrightconfig.json  # Python 类型检查配置
+├── pytest.ini          # Pytest 配置
 ├── bots/               # 机器人实现
 │   ├── __init__.py     # 包初始化
+│   ├── bot_caller_bot.py # 调用其他机器人的机器人
+│   ├── calculator_bot.py # 计算器机器人实现
 │   ├── echo_bot.py     # Echo 机器人实现
+│   ├── file_analyzer_bot.py # 文件分析机器人实现
+│   ├── function_calling_bot.py # 函数调用演示
 │   ├── reverse_bot.py  # Reverse 机器人实现
+│   ├── template_bot.py # 创建新机器人的模板
 │   ├── uppercase_bot.py # Uppercase 机器人实现
-│   └── template_bot.py # 创建新机器人的模板
+│   ├── weather_bot.py  # 天气信息机器人
+│   └── web_search_bot.py # 网络搜索机器人实现
 ├── examples/           # 示例机器人和指南
 │   ├── README.md       # 示例文档
 │   ├── standalone_echobot.py # 独立机器人示例
@@ -93,8 +110,17 @@ poe_bots/
 ├── tests/              # 测试套件
 │   ├── __init__.py     # 测试包初始化
 │   ├── conftest.py     # Pytest 配置
+│   ├── test_app.py     # 主应用测试
 │   ├── test_base_bot.py # BaseBot 类测试
-│   └── test_bot_factory.py # BotFactory 类测试
+│   ├── test_bot_caller_bot.py # BotCallerBot 测试
+│   ├── test_bot_factory.py # BotFactory 类测试
+│   ├── test_calculator_bot.py # CalculatorBot 测试
+│   ├── test_config.py  # 配置测试
+│   ├── test_echo_bot.py # EchoBot 测试
+│   ├── test_file_analyzer_bot.py # FileAnalyzerBot 测试
+│   ├── test_function_calling_bot.py # FunctionCallingBot 测试
+│   ├── test_weather_bot.py # WeatherBot 测试
+│   └── test_web_search_bot.py # WebSearchBot 测试
 └── utils/              # 工具模块
     ├── __init__.py     # 包初始化
     ├── base_bot.py     # 具有通用功能的基础机器人类
@@ -216,12 +242,13 @@ curl -X POST "http://localhost:8000/echobot" \
 
 1. 将 `bots/template_bot.py` 复制到 `bots/your_bot_name.py`
 2. 修改类名、机器人名称和描述
-3. 在 `_process_message` 方法中实现您的逻辑
+3. 在 `get_response` 方法中实现您的逻辑
 
 示例：
 ```python
-from typing import AsyncGenerator
-from fastapi_poe.types import PartialResponse, QueryRequest
+import json
+from typing import AsyncGenerator, Union
+from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
 from utils.base_bot import BaseBot
 
 class WeatherBot(BaseBot):
@@ -231,9 +258,18 @@ class WeatherBot(BaseBot):
     bot_description = "为指定位置提供天气信息"
     version = "1.0.0"
 
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        # 提取用户消息
+        user_message = self._extract_message(query)
+
+        # 处理机器人信息请求
+        if user_message.lower().strip() == "bot info":
+            metadata = self._get_bot_metadata()
+            yield PartialResponse(text=json.dumps(metadata, indent=2))
+            return
+
         # 解析消息获取位置
-        location = message.strip()
+        location = user_message.strip()
 
         # 在真实机器人中，您会调用天气 API
         weather_info = f"{location}的天气晴朗，最高温度为24°C。"
@@ -516,6 +552,55 @@ curl https://yourusername--poe-bots-fastapi-app.modal.run/bots
 3. **运行时错误**：
    - 使用调试模式运行：`./run_local.sh --debug`
    - 检查日志以获取特定错误消息
+
+## 持续集成与质量保证
+
+本项目使用 GitHub Actions 在每次推送和拉取请求时运行自动化测试和代码质量检查。
+
+### CI/CD 流水线
+
+CI/CD 流水线运行：
+- 在多个 Python 版本上使用 pytest 进行单元测试
+- 使用 ruff 进行代码规范检查
+- 使用 pyright 进行类型检查
+
+您可以在仓库的 GitHub Actions 标签页中查看 CI 流水线的状态。
+
+### Pre-Commit 钩子
+
+Pre-commit 钩子用于确保代码质量，在每次提交和推送前自动检查您的代码。
+
+#### 设置说明
+
+```bash
+# 安装 pre-commit 工具
+pip install pre-commit
+
+# 安装 pre-commit 钩子
+pre-commit install --install-hooks
+
+# 同时安装 pre-push 钩子（用于测试）
+pre-commit install --hook-type pre-push
+```
+
+#### 钩子检查内容
+
+每次提交时：
+- **代码规范检查**（ruff）：检查代码风格和格式
+- **类型检查**（pyright）：验证正确的类型使用
+- **安全检查**：检测私钥、调试语句等
+- **文件格式化**：修复尾随空格、行尾等
+
+每次推送时：
+- **测试**（pytest）：运行整个测试套件
+
+#### 好处
+
+- 防止提交有错误或质量差的代码
+- 提供问题的即时反馈
+- 确保团队间的代码质量一致
+- 减少关于风格/格式的代码审查评论
+- 一些问题会被自动修复
 
 ## 资源
 
