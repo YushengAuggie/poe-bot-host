@@ -24,9 +24,9 @@ Before starting, make sure you have:
    ```bash
    modal token new
    ```
-   
+
    This will open a browser window for authentication:
-   
+
    ![Modal Auth](https://docs.modal.com/images/token_new.png)
 
 ### 1.2 Deploy Your Bots
@@ -55,7 +55,7 @@ Verify that your deployment works by testing the following endpoints:
    ```bash
    curl https://yourusername--poe-bot-host-fastapi-app.modal.run/health
    ```
-   
+
    Expected response:
    ```json
    {
@@ -75,7 +75,7 @@ Verify that your deployment works by testing the following endpoints:
    ```bash
    curl https://yourusername--poe-bot-host-fastapi-app.modal.run/bots
    ```
-   
+
    Expected response:
    ```json
    {
@@ -124,10 +124,10 @@ For a more polished bot experience, add:
 1. **Sample Messages**: Add 3-5 example messages to help users know what to ask
    - Example for EchoBot: "Hello world", "Echo this message", "Repeat after me: test"
    - Example for WeatherBot: "Weather in New York", "What's the forecast for London?", "Tokyo weather"
-   
+
 2. **Knowledge Files**: If your bot requires reference materials, you can upload them here
    - Most bots in this framework don't need this, as they process input directly
-   
+
 3. **API Citation Preference**: Choose how your bot should cite sources
    - For most bots in this framework, "Don't cite sources" is appropriate
 

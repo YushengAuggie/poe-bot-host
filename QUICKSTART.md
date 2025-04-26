@@ -60,20 +60,20 @@ from utils.base_bot import BaseBot
 
 class MyAwesomeBot(BaseBot):
     """My awesome bot that does cool things."""
-    
+
     bot_name = "MyAwesomeBot"
     bot_description = "A really cool bot that does awesome things"
-    
+
     async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         # Extract the user message
         user_message = self._extract_message(query)
-        
+
         # Handle bot info requests (required)
         if user_message.lower().strip() == "bot info":
             metadata = self._get_bot_metadata()
             yield PartialResponse(text=json.dumps(metadata, indent=2))
             return
-            
+
         # Your custom logic here
         response = f"You said: {user_message}\n\nHere's my awesome response!"
         yield PartialResponse(text=response)

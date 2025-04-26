@@ -9,9 +9,9 @@ import json
 import logging
 import os
 import re
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional, Union
 
-from fastapi_poe.types import Attachment, PartialResponse, QueryRequest
+from fastapi_poe.types import Attachment, MetaResponse, PartialResponse, QueryRequest
 
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
@@ -78,8 +78,13 @@ class FileAnalyzerBot(BaseBot):
                 )
 
             # Extract and return content
-            content = attachment.content.decode("utf-8")
-            return content
+            # Access content via __dict__ to satisfy type checker
+            # content attribute is added by the Poe platform but not in type definition
+            if hasattr(attachment, "content") and attachment.__dict__.get("content"):
+                content = attachment.__dict__["content"].decode("utf-8")
+                return content
+            else:
+                raise BotErrorNoRetry("No content available in attachment")
 
         except UnicodeDecodeError:
             raise BotErrorNoRetry(
@@ -318,23 +323,43 @@ class FileAnalyzerBot(BaseBot):
 
         return response
 
-    async def _process_message(
-        self, message: str, query: QueryRequest
-    ) -> AsyncGenerator[PartialResponse, None]:
-        """Process the user's message and handle file uploads."""
-        message = message.strip()
+    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Process the user's message and handle file uploads. (Deprecated)"""
+        logger.warning(
+            f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."
+        )
 
-        # Since we're working with Pydantic models, we need to access attachments correctly
-        attachments = []
-        if isinstance(query.query, list) and query.query:
-            last_message = query.query[-1]
-            if hasattr(last_message, "attachments"):
-                attachments = last_message.attachments
+        # For backward compatibility, delegate to get_response
+        async for response in self.get_response(query):
+            if isinstance(response, PartialResponse):
+                yield response
 
-        # Help command
-        if message.lower() in ["help", "?", "/help"]:
-            yield PartialResponse(
-                text="""
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """Process the query and handle file uploads."""
+        try:
+            # Extract the message
+            message = self._extract_message(query)
+            message = message.strip()
+
+            # Handle bot info requests
+            if message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
+
+            # Since we're working with Pydantic models, we need to access attachments correctly
+            attachments = []
+            if isinstance(query.query, list) and query.query:
+                last_message = query.query[-1]
+                if hasattr(last_message, "attachments"):
+                    attachments = last_message.attachments
+
+            # Help command
+            if message.lower() in ["help", "?", "/help"]:
+                yield PartialResponse(
+                    text="""
 ## 📄 File Analyzer Bot
 
 Upload a file, and I'll analyze it for you! I can provide statistics and insights for:
@@ -363,21 +388,20 @@ Upload a file, and I'll analyze it for you! I can provide statistics and insight
 
 Simply upload a file to get started!
 """
-            )
-            return
+                )
+                return
 
-        # Check for file attachments
-        if not attachments:
-            yield PartialResponse(
-                text="Please upload a file for me to analyze. Type 'help' for instructions."
-            )
-            return
+            # Check for file attachments
+            if not attachments:
+                yield PartialResponse(
+                    text="Please upload a file for me to analyze. Type 'help' for instructions."
+                )
+                return
 
-        # Process the first attachment
-        attachment = attachments[0]
-        yield PartialResponse(text=f"Analyzing {attachment.name}...\n\n")
+            # Process the first attachment
+            attachment = attachments[0]
+            yield PartialResponse(text=f"Analyzing {attachment.name}...\n\n")
 
-        try:
             # Extract content from file
             content = self._extract_file_content(attachment)
 
@@ -389,7 +413,18 @@ Simply upload a file to get started!
             yield PartialResponse(text=formatted_analysis)
 
         except BotErrorNoRetry as e:
-            yield PartialResponse(text=f"Error: {str(e)}")
+            # Log the error (non-retryable)
+            logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try something else): {str(e)}")
+
+        except BotError as e:
+            # Log the error (retryable)
+            logger.error(f"[{self.bot_name}] Retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try again): {str(e)}")
+
         except Exception as e:
-            yield PartialResponse(text=f"Analysis error: {str(e)}")
-            return
+            # Log the unexpected error
+            logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}", exc_info=True)
+            # Return a generic error message
+            error_msg = "An unexpected error occurred. Please try again later."
+            yield PartialResponse(text=error_msg)

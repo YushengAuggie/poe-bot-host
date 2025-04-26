@@ -34,7 +34,7 @@ The Poe Bot Host is a comprehensive platform for creating, testing, deploying, a
 
 ### Prerequisites
 
-- Python 3.7+ installed
+- Python 3.8+ installed
 - A [Poe](https://poe.com/) account for testing and deployment
 - [Modal](https://modal.com/) account for cloud deployment (optional)
 
@@ -60,6 +60,11 @@ The Poe Bot Host is a comprehensive platform for creating, testing, deploying, a
    pip install -r requirements.txt
    ```
 
+5. (Optional) Install development dependencies:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
 ## Key Concepts
 
 ### Bot Architecture
@@ -83,12 +88,20 @@ poe_bots/
 ├── pyproject.toml      # Python project configuration
 ├── setup.py            # Package setup for compatibility
 ├── requirements.txt    # Python dependencies
+├── pyrightconfig.json  # Python type checking configuration
+├── pytest.ini          # Pytest configuration
 ├── bots/               # Bot implementations
 │   ├── __init__.py     # Package initialization
+│   ├── bot_caller_bot.py # Bot that calls other bots
+│   ├── calculator_bot.py # Calculator bot implementation
 │   ├── echo_bot.py     # Echo bot implementation
+│   ├── file_analyzer_bot.py # File analysis bot implementation
+│   ├── function_calling_bot.py # Function calling demonstration
 │   ├── reverse_bot.py  # Reverse bot implementation
+│   ├── template_bot.py # Template for creating new bots
 │   ├── uppercase_bot.py # Uppercase bot implementation
-│   └── template_bot.py # Template for creating new bots
+│   ├── weather_bot.py  # Weather information bot
+│   └── web_search_bot.py # Web search bot implementation
 ├── examples/           # Example bots and guides
 │   ├── README.md       # Examples documentation
 │   ├── standalone_echobot.py # Standalone bot example
@@ -97,8 +110,17 @@ poe_bots/
 ├── tests/              # Test suite
 │   ├── __init__.py     # Test package initialization
 │   ├── conftest.py     # Pytest configuration
+│   ├── test_app.py     # Tests for the main app
 │   ├── test_base_bot.py # Tests for BaseBot class
-│   └── test_bot_factory.py # Tests for BotFactory class
+│   ├── test_bot_caller_bot.py # Tests for BotCallerBot
+│   ├── test_bot_factory.py # Tests for BotFactory class
+│   ├── test_calculator_bot.py # Tests for CalculatorBot
+│   ├── test_config.py  # Tests for configuration
+│   ├── test_echo_bot.py # Tests for EchoBot
+│   ├── test_file_analyzer_bot.py # Tests for FileAnalyzerBot
+│   ├── test_function_calling_bot.py # Tests for FunctionCallingBot
+│   ├── test_weather_bot.py # Tests for WeatherBot
+│   └── test_web_search_bot.py # Tests for WebSearchBot
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
     ├── base_bot.py     # Base bot class with common functionality
@@ -178,6 +200,16 @@ python test_bot.py --schema
 
 ### Manual Testing with curl
 
+To test your bots manually with curl, first make sure your server is running:
+
+```bash
+# Start the server in one terminal
+source venv/bin/activate  # Make sure your virtual environment is activated
+./run_local.sh  # Or python run_local.py
+```
+
+Then in a separate terminal, you can send requests:
+
 ```bash
 # Get a list of available bots
 curl http://localhost:8000/bots
@@ -185,9 +217,10 @@ curl http://localhost:8000/bots
 # Check API health
 curl http://localhost:8000/health
 
-# Test a specific bot
+# Test a specific bot (replace echobot with your bot's name in lowercase)
 curl -X POST "http://localhost:8000/echobot" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer dummytoken" \
   -d '{
     "version": "1.0",
     "type": "query",
@@ -214,15 +247,25 @@ The framework comes with several example bots that demonstrate different capabil
 
 ### Advanced Bots
 
-- **BotCallerBot**: A bot that can call other bots in the framework
+- **BotCallerBot**: A bot that can call other bots in the framework:
+  - Lists all available bots in the system
+  - Calls other bots with specified messages
+  - Supports command pattern for bot interaction
 - **WeatherBot**: Provides weather information for any location
 - **WebSearchBot**: Searches the web for information
 
 ### Functional Bots
 
 - **CalculatorBot**: Performs various mathematical calculations
-- **FunctionCallingBot**: Demonstrates function calling capabilities
-- **FileAnalyzerBot**: Analyzes uploaded files and provides statistics
+- **FunctionCallingBot**: Demonstrates function calling capabilities:
+  - Implements several functions (calculate, convert_units, get_current_time, generate_random_number)
+  - Shows how to define function specifications and parameters
+  - Demonstrates Poe API function calling protocol
+- **FileAnalyzerBot**: Analyzes uploaded files and provides statistics:
+  - Text extraction and analysis from uploaded files
+  - Support for various file formats (.txt, .csv, .md, .json, .yaml, code files)
+  - Detailed statistics for different file types
+  - Content preview functionality
 
 ## Creating a New Bot
 
@@ -243,27 +286,27 @@ from utils.base_bot import BaseBot
 
 class WeatherBot(BaseBot):
     """Bot that provides weather information."""
-    
+
     bot_name = "WeatherBot"
     bot_description = "Provides weather information for specified locations"
     version = "1.0.0"
-    
+
     async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         # Extract the message
         user_message = self._extract_message(query)
-        
+
         # Handle bot info requests
         if user_message.lower().strip() == "bot info":
             metadata = self._get_bot_metadata()
             yield PartialResponse(text=json.dumps(metadata, indent=2))
             return
-        
+
         # Parse the message to get location
         location = user_message.strip()
-        
+
         # In a real bot, you would call a weather API here
         weather_info = f"The weather in {location} is sunny with a high of 75°F."
-        
+
         # Return the response
         yield PartialResponse(text=weather_info)
 ```
@@ -277,14 +320,14 @@ class ConfigurableBot(BaseBot):
     bot_name = "ConfigurableBot"
     bot_description = "A bot with custom configuration"
     version = "1.0.0"
-    
+
     # Custom settings
     max_message_length = 5000  # Override default (2000)
     stream_response = False    # Disable streaming
-    
+
     # You can add your own settings too
     api_key = "default-key"   # Custom setting
-    
+
     def __init__(self, **kwargs):
         # Initialize with settings from environment or kwargs
         settings = {
@@ -307,21 +350,24 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 class ErrorHandlingBot(BaseBot):
     # ...
-    
-    async def _process_message(self, message: str, query: QueryRequest):
+
+    async def get_response(self, query: QueryRequest):
         try:
+            # Extract the message
+            message = self._extract_message(query)
+
             # Some code that might fail
             if not self._is_valid_input(message):
                 # User error - don't retry
                 raise BotErrorNoRetry("Invalid input format. Please try something else.")
-                
+
             result = await self._fetch_external_data(message)
             if not result:
                 # Service error - can retry
                 raise BotError("Service unavailable. Please try again later.")
-                
+
             yield PartialResponse(text=result)
-            
+
         except Exception as e:
             # Handle unexpected errors
             self.logger.error(f"Unexpected error: {str(e)}", exc_info=True)
@@ -582,23 +628,41 @@ The CI/CD pipeline runs:
 
 You can check the status of the CI pipeline in the GitHub Actions tab of the repository.
 
-### Pre-Push Hook
+### Pre-Commit Hooks
 
-A pre-push hook is installed to run tests locally before pushing changes:
+Pre-commit hooks are used to ensure code quality by automatically checking your code before each commit and push.
 
-```bash
-# The hook will automatically run tests before each push
-git push  # Tests will run automatically
-
-# If tests fail, the push will be aborted
-```
-
-To install the pre-push hook on a new clone:
+#### Setup Instructions
 
 ```bash
-# Make the pre-push hook executable
-chmod +x .git/hooks/pre-push
+# Install the pre-commit tool
+pip install pre-commit
+
+# Install the pre-commit hooks
+pre-commit install --install-hooks
+
+# Also install pre-push hooks (for tests)
+pre-commit install --hook-type pre-push
 ```
+
+#### What the Hooks Check
+
+On every commit:
+- **Linting** (ruff): Checks code style and formatting
+- **Type checking** (pyright): Verifies correct type usage
+- **Security checks**: Detects private keys, debugging statements, etc.
+- **File formatting**: Fixes trailing whitespace, line endings, etc.
+
+On every push:
+- **Tests** (pytest): Runs the entire test suite
+
+#### Benefits
+
+- Prevents committing code with errors or poor quality
+- Provides immediate feedback on issues
+- Ensures consistent code quality across the team
+- Reduces the need for code review comments about style/formatting
+- Some issues are fixed automatically
 
 ## Resources
 

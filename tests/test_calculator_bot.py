@@ -2,10 +2,12 @@
 Tests for the CalculatorBot implementation.
 """
 
+
 import pytest
-from typing import List
-from fastapi_poe.types import QueryRequest, PartialResponse
+from fastapi_poe.types import QueryRequest
+
 from bots.calculator_bot import CalculatorBot
+
 
 @pytest.fixture
 def calculator_bot():
@@ -52,11 +54,11 @@ async def test_calculator_basic_operations(calculator_bot, expression, expected)
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     responses = []
     async for response in calculator_bot.get_response(query):
         responses.append(response)
-    
+
     # Verify response contains the expected calculation result
     assert len(responses) == 1
     assert expected in responses[0].text
@@ -77,11 +79,11 @@ async def test_calculator_help_command(calculator_bot, expression):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     responses = []
     async for response in calculator_bot.get_response(query):
         responses.append(response)
-    
+
     # Verify help content is returned
     assert len(responses) == 1
     assert "Calculator Bot" in responses[0].text
@@ -104,11 +106,11 @@ async def test_calculator_unit_conversions(calculator_bot, conversion_request, e
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     responses = []
     async for response in calculator_bot.get_response(query):
         responses.append(response)
-    
+
     # Verify conversion result is correct
     assert len(responses) == 1
     assert expected_result in responses[0].text
@@ -130,11 +132,11 @@ async def test_calculator_handles_invalid_expressions(calculator_bot, invalid_ex
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     responses = []
     async for response in calculator_bot.get_response(query):
         responses.append(response)
-    
+
     # Verify error message is returned
     assert len(responses) == 1
     assert "Error" in responses[0].text or "Invalid" in responses[0].text

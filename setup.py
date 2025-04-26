@@ -1,6 +1,6 @@
 """
 Setup script for Poe Bots Framework.
-This is mainly for compatibility with older package managers. 
+This is mainly for compatibility with older package managers.
 Modern Python packaging should use pyproject.toml instead.
 """
 

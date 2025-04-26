@@ -1,0 +1,19 @@
+{
+  "include": [
+    "app.py",
+    "bots",
+    "examples",
+    "utils",
+    "tests"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/temp_venv",
+    "**/venv"
+  ],
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "pythonVersion": "3.7",
+  "typeCheckingMode": "basic"
+}
