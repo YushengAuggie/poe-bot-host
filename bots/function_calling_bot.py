@@ -9,11 +9,11 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional, Union
 
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
-from utils.base_bot import BaseBot
+from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
 
@@ -235,18 +235,38 @@ class FunctionCallingBot(BaseBot):
             logger.error(f"Error calling function {function_name}: {str(e)}")
             return {"error": f"Error calling function {function_name}: {str(e)}"}
 
-    async def _process_message(
-        self, message: str, query: QueryRequest
-    ) -> AsyncGenerator[PartialResponse, None]:
-        """
-        Process the user's message and handle function calling.
-        """
-        message = message.strip()
+    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Process the user's message and handle function calling. (Deprecated)"""
+        logger.warning(
+            f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."
+        )
 
-        # Help command
-        if message.lower() in ["help", "?", "/help"]:
-            yield PartialResponse(
-                text="""
+        # For backward compatibility, delegate to get_response
+        async for response in self.get_response(query):
+            if isinstance(response, PartialResponse):
+                yield response
+
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """
+        Process the query and handle function calling.
+        """
+        try:
+            # Extract the message
+            message = self._extract_message(query)
+            message = message.strip()
+
+            # Handle bot info requests
+            if message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
+
+            # Help command
+            if message.lower() in ["help", "?", "/help"]:
+                yield PartialResponse(
+                    text="""
 ## ⚙️ Function Calling Bot
 
 I can demonstrate the Poe API function calling capabilities. I can:
@@ -269,49 +289,66 @@ I can demonstrate the Poe API function calling capabilities. I can:
 
 Ask me to perform any of these functions!
 """
-            )
-            return
+                )
+                return
 
-        # Empty query
-        if not message:
-            yield PartialResponse(text="Please enter a request. Type 'help' for instructions.")
-            return
+            # Empty query
+            if not message:
+                yield PartialResponse(text="Please enter a request. Type 'help' for instructions.")
+                return
 
-        # Send a MetaResponse with functions available
-        # For testing purposes in CI, we'll just send a regular response
-        # The MetaResponse constructor has changed between versions of the library
-        yield PartialResponse(text="")
+            # Send a MetaResponse with functions available
+            # For testing purposes in CI, we'll just send a regular response
+            # The MetaResponse constructor has changed between versions of the library
+            yield PartialResponse(text="")
 
-        # Simulate a function call request based on the message
-        # In a real implementation, the Poe platform would look at the meta response and
-        # call our bot with the function to execute when appropriate
-        function_call = self._determine_function_call(message)
+            # Simulate a function call request based on the message
+            # In a real implementation, the Poe platform would look at the meta response and
+            # call our bot with the function to execute when appropriate
+            function_call = self._determine_function_call(message)
 
-        if function_call:
-            function_name = function_call.get("name")
-            function_params = function_call.get("parameters", {})
+            if function_call:
+                function_name = function_call.get("name")
+                function_params = function_call.get("parameters", {})
 
-            # Show the function call (for demonstration)
-            yield PartialResponse(
-                text=f"```json\n{json.dumps({'function_call': function_call}, indent=2)}\n```\n\n"
-            )
+                # Show the function call (for demonstration)
+                yield PartialResponse(
+                    text=f"```json\n{json.dumps({'function_call': function_call}, indent=2)}\n```\n\n"
+                )
 
-            # Call the function
-            if function_name is not None:
-                result = self._call_function(function_name, function_params)
+                # Call the function
+                if function_name is not None:
+                    result = self._call_function(function_name, function_params)
+                else:
+                    result = {"error": "No function name provided"}
+
+                # Format and return the result
+                if function_name is not None:
+                    formatted_result = self._format_function_result(function_name, result)
+                    yield PartialResponse(text=formatted_result)
+                else:
+                    yield PartialResponse(text="Function name is missing.")
             else:
-                result = {"error": "No function name provided"}
+                yield PartialResponse(
+                    text="I'm not sure what function to call. Can you try being more specific?"
+                )
 
-            # Format and return the result
-            if function_name is not None:
-                formatted_result = self._format_function_result(function_name, result)
-                yield PartialResponse(text=formatted_result)
-            else:
-                yield PartialResponse(text="Function name is missing.")
-        else:
-            yield PartialResponse(
-                text="I'm not sure what function to call. Can you try being more specific?"
-            )
+        except BotErrorNoRetry as e:
+            # Log the error (non-retryable)
+            logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try something else): {str(e)}")
+
+        except BotError as e:
+            # Log the error (retryable)
+            logger.error(f"[{self.bot_name}] Retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try again): {str(e)}")
+
+        except Exception as e:
+            # Log the unexpected error
+            logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}", exc_info=True)
+            # Return a generic error message
+            error_msg = "An unexpected error occurred. Please try again later."
+            yield PartialResponse(text=error_msg)
 
     def _determine_function_call(self, message: str) -> Optional[Dict[str, Any]]:
         """

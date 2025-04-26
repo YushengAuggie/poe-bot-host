@@ -351,8 +351,11 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 class ErrorHandlingBot(BaseBot):
     # ...
 
-    async def _process_message(self, message: str, query: QueryRequest):
+    async def get_response(self, query: QueryRequest):
         try:
+            # Extract the message
+            message = self._extract_message(query)
+
             # Some code that might fail
             if not self._is_valid_input(message):
                 # User error - don't retry

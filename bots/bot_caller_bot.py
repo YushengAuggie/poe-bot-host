@@ -7,12 +7,12 @@ allowing for composing multiple bots together for more complex functionalities.
 
 import json
 import logging
-from typing import AsyncGenerator, Dict
+from typing import AsyncGenerator, Dict, Union
 
 import httpx
-from fastapi_poe.types import PartialResponse, QueryRequest
+from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
-from utils.base_bot import BaseBot, BotError
+from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
 
@@ -110,14 +110,11 @@ class BotCallerBot(BaseBot):
             raise BotError(f"Failed to call bot {bot_name}: {str(e)}")
 
     async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """
-        Process the user message and call appropriate bot or action.
+        """Process the user message and call appropriate bot or action. (Deprecated)"""
+        logger.warning(
+            f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."
+        )
 
-        Commands:
-        - list: List available bots
-        - call <bot_name> <message>: Call the specified bot with the message
-        - echo <message>: Echo the message (for testing)
-        """
         message = message.strip()
         user_id = query.user_id
         conversation_id = query.conversation_id
@@ -174,4 +171,95 @@ I can call other bots in the framework. Here are my commands:
 
 Example: `call EchoBot Hello, world!`
 """)
-        return
+
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """
+        Process the query and call appropriate bot or action.
+
+        Commands:
+        - list: List available bots
+        - call <bot_name> <message>: Call the specified bot with the message
+        - echo <message>: Echo the message (for testing)
+        """
+        try:
+            # Extract the message
+            message = self._extract_message(query)
+            message = message.strip()
+            user_id = query.user_id
+            conversation_id = query.conversation_id
+
+            # Handle bot info requests
+            if message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
+
+            # Handle the 'list' command
+            if message.lower() == "list":
+                try:
+                    bots = await self._list_available_bots()
+                    bot_list = []
+                    for bot_name, description in bots.items():
+                        bot_list.append(f"- **{bot_name}**: {description}")
+
+                    yield PartialResponse(text="## Available Bots\n\n" + "\n".join(bot_list))
+                    yield PartialResponse(text="\n\nTo call a bot, use: `call <bot_name> <message>`")
+                    return
+                except Exception as e:
+                    yield PartialResponse(text=f"Error listing bots: {str(e)}")
+                    return
+
+            # Handle the 'call' command
+            if message.lower().startswith("call "):
+                # Parse the command: call <bot_name> <message>
+                parts = message[5:].strip().split(" ", 1)
+
+                if len(parts) < 2:
+                    yield PartialResponse(text="Error: Please provide both a bot name and a message.\nExample: `call EchoBot Hello, world!`")
+                    return
+
+                bot_name, bot_message = parts
+                yield PartialResponse(text=f"Calling {bot_name}...\n\n")
+
+                try:
+                    async for response_chunk in self._call_bot(bot_name, bot_message, user_id, conversation_id):
+                        yield response_chunk
+                except Exception as e:
+                    yield PartialResponse(text=f"Error calling {bot_name}: {str(e)}")
+                return
+
+            # Handle the 'echo' command (for testing)
+            if message.lower().startswith("echo "):
+                echo_text = message[5:].strip()
+                yield PartialResponse(text=f"Echo: {echo_text}")
+                return
+
+            # Handle help or unknown commands
+            yield PartialResponse(text="""
+## Bot Caller Bot
+
+I can call other bots in the framework. Here are my commands:
+
+- `list` - List all available bots
+- `call <bot_name> <message>` - Call a specific bot with a message
+- `echo <message>` - Echo a message (for testing)
+
+Example: `call EchoBot Hello, world!`
+""")
+
+        except BotErrorNoRetry as e:
+            # Log the error (non-retryable)
+            logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try something else): {str(e)}")
+
+        except BotError as e:
+            # Log the error (retryable)
+            logger.error(f"[{self.bot_name}] Retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try again): {str(e)}")
+
+        except Exception as e:
+            # Log the unexpected error
+            logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}", exc_info=True)
+            # Return a generic error message
+            error_msg = "An unexpected error occurred. Please try again later."
+            yield PartialResponse(text=error_msg)

@@ -4,12 +4,13 @@ Web Search Bot - A bot that can search the web using the Google Search API.
 This bot demonstrates how to make external API calls to provide web search functionality.
 """
 
+import json
 import logging
 import os
-from typing import Any, AsyncGenerator, Dict
+from typing import Any, AsyncGenerator, Dict, Union
 
 import httpx
-from fastapi_poe.types import PartialResponse, QueryRequest
+from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
@@ -133,12 +134,32 @@ class WebSearchBot(BaseBot):
         return formatted
 
     async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
-        """Process the user's search query and return search results."""
-        message = message.strip()
+        """Process the user's search query and return search results. (Deprecated)"""
+        logger.warning(
+            f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."
+        )
 
-        # Help command
-        if message.lower() in ["help", "?", "/help"]:
-            yield PartialResponse(text="""
+        # For backward compatibility, delegate to get_response
+        async for response in self.get_response(query):
+            if isinstance(response, PartialResponse):
+                yield response
+
+    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+        """Process the query and return search results."""
+        try:
+            # Extract the message
+            message = self._extract_message(query)
+            message = message.strip()
+
+            # Handle bot info requests
+            if message.lower().strip() == "bot info":
+                metadata = self._get_bot_metadata()
+                yield PartialResponse(text=json.dumps(metadata, indent=2))
+                return
+
+            # Help command
+            if message.lower() in ["help", "?", "/help"]:
+                yield PartialResponse(text="""
 ## 🔍 Web Search Bot
 
 Enter any search query and I'll search the web for information.
@@ -150,15 +171,14 @@ Examples:
 
 Note: For the best experience, be specific in your search queries.
 """)
-            return
+                return
 
-        # Empty query
-        if not message:
-            yield PartialResponse(text="Please enter a search query. Type 'help' for instructions.")
-            return
+            # Empty query
+            if not message:
+                yield PartialResponse(text="Please enter a search query. Type 'help' for instructions.")
+                return
 
-        # Perform the search
-        try:
+            # Perform the search
             yield PartialResponse(text=f"Searching for '{message}'...\n\n")
 
             search_results = await self._search_web(message)
@@ -166,6 +186,19 @@ Note: For the best experience, be specific in your search queries.
 
             yield PartialResponse(text=formatted_results)
 
+        except BotErrorNoRetry as e:
+            # Log the error (non-retryable)
+            logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try something else): {str(e)}")
+
+        except BotError as e:
+            # Log the error (retryable)
+            logger.error(f"[{self.bot_name}] Retryable error: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error (please try again): {str(e)}")
+
         except Exception as e:
-            yield PartialResponse(text=f"Search error: {str(e)}")
-            return
+            # Log the unexpected error
+            logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}", exc_info=True)
+            # Return a generic error message
+            error_msg = "An unexpected error occurred. Please try again later."
+            yield PartialResponse(text=error_msg)

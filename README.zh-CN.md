@@ -318,8 +318,11 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 class ErrorHandlingBot(BaseBot):
     # ...
 
-    async def _process_message(self, message: str, query: QueryRequest):
+    async def get_response(self, query: QueryRequest):
         try:
+            # 提取用户消息
+            message = self._extract_message(query)
+
             # 可能失败的代码
             if not self._is_valid_input(message):
                 # 用户错误 - 不要重试
