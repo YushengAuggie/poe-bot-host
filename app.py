@@ -1,15 +1,16 @@
 """
 Main application entry point for the Poe Bot Host.
 
-This module creates and configures the FastAPI application for hosting 
+This module creates and configures the FastAPI application for hosting
 multiple Poe bots, both locally and deployed on Modal.
 """
 
 import logging
-import os
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from modal import Image, App, asgi_app
+from modal import App, Image, asgi_app
+
 from utils.bot_factory import BotFactory
 from utils.config import settings
 
@@ -20,23 +21,23 @@ __version__ = "1.0.0"
 
 def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
     """Create and configure the FastAPI app with all available bots.
-    
+
     Args:
         allow_without_key: Whether to allow requests without an API key
-        
+
     Returns:
         Configured FastAPI app
     """
     # Load all bots from the 'bots' module
     logger.info("Loading bots from 'bots' module")
     bot_classes = BotFactory.load_bots_from_module("bots")
-    
+
     if not bot_classes:
         logger.warning("No bots found in 'bots' module!")
-    
+
     # Create a FastAPI app with all the bots
     api = BotFactory.create_app(bot_classes, allow_without_key=allow_without_key)
-    
+
     # Add custom error handling
     @api.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
@@ -45,7 +46,7 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
             status_code=500,
             content={"error": "An internal server error occurred", "detail": str(exc)}
         )
-    
+
     # Add a health check endpoint
     @api.get("/health")
     async def health_check():
@@ -62,13 +63,13 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
                 "allow_without_key": settings.ALLOW_WITHOUT_KEY
             }
         }
-    
+
     # Add a bot list endpoint
     @api.get("/bots")
     async def list_bots():
         """List all available bots."""
         return BotFactory.get_available_bots()
-    
+
     return api
 
 # Create the API
@@ -96,6 +97,6 @@ def fastapi_app():
 # This allows the app to be run locally with 'python app.py'
 if __name__ == "__main__":
     import uvicorn
-    
+
     logger.info(f"Starting FastAPI app locally on {settings.API_HOST}:{settings.API_PORT}")
     uvicorn.run(api, host=settings.API_HOST, port=settings.API_PORT)

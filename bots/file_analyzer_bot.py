@@ -78,8 +78,13 @@ class FileAnalyzerBot(BaseBot):
                 )
 
             # Extract and return content
-            content = attachment.content.decode("utf-8")
-            return content
+            # Access content via __dict__ to satisfy type checker
+            # content attribute is added by the Poe platform but not in type definition
+            if hasattr(attachment, "content") and attachment.__dict__.get("content"):
+                content = attachment.__dict__["content"].decode("utf-8")
+                return content
+            else:
+                raise BotErrorNoRetry("No content available in attachment")
 
         except UnicodeDecodeError:
             raise BotErrorNoRetry(

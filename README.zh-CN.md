@@ -226,18 +226,18 @@ from utils.base_bot import BaseBot
 
 class WeatherBot(BaseBot):
     """提供天气信息的机器人。"""
-    
+
     bot_name = "WeatherBot"
     bot_description = "为指定位置提供天气信息"
     version = "1.0.0"
-    
+
     async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
         # 解析消息获取位置
         location = message.strip()
-        
+
         # 在真实机器人中，您会调用天气 API
         weather_info = f"{location}的天气晴朗，最高温度为24°C。"
-        
+
         # 返回响应
         yield PartialResponse(text=weather_info)
 ```
@@ -251,14 +251,14 @@ class ConfigurableBot(BaseBot):
     bot_name = "ConfigurableBot"
     bot_description = "具有自定义配置的机器人"
     version = "1.0.0"
-    
+
     # 自定义设置
     max_message_length = 5000  # 覆盖默认值（2000）
     stream_response = False    # 禁用流式响应
-    
+
     # 您也可以添加自己的设置
     api_key = "default-key"   # 自定义设置
-    
+
     def __init__(self, **kwargs):
         # 使用环境变量或 kwargs 初始化
         settings = {
@@ -281,21 +281,21 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 class ErrorHandlingBot(BaseBot):
     # ...
-    
+
     async def _process_message(self, message: str, query: QueryRequest):
         try:
             # 可能失败的代码
             if not self._is_valid_input(message):
                 # 用户错误 - 不要重试
                 raise BotErrorNoRetry("输入格式无效。请尝试其他内容。")
-                
+
             result = await self._fetch_external_data(message)
             if not result:
                 # 服务错误 - 可重试
                 raise BotError("服务不可用。请稍后再试。")
-                
+
             yield PartialResponse(text=result)
-            
+
         except Exception as e:
             # 处理意外错误
             self.logger.error(f"意外错误：{str(e)}", exc_info=True)
@@ -396,10 +396,10 @@ curl https://yourusername--poe-bots-fastapi-app.modal.run/bots
 1. **Sample Messages**：添加 3-5 个示例消息，帮助用户知道要问什么
    - EchoBot 示例："你好世界"，"回显这条消息"，"跟我重复：测试"
    - WeatherBot 示例："纽约天气"，"伦敦的天气预报是什么？"，"东京天气"
-   
+
 2. **Knowledge Files**：如果您的机器人需要参考材料，可以在这里上传
    - 本框架中的大多数机器人不需要这个，因为它们直接处理输入
-   
+
 3. **API Citation Preference**：选择您的机器人应如何引用来源
    - 对于本框架中的大多数机器人，选择"Don't cite sources"比较合适
 

@@ -2,12 +2,14 @@
 Tests for the WebSearchBot implementation.
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
-from typing import List, Dict, Any
-from fastapi_poe.types import QueryRequest, PartialResponse
+from fastapi_poe.types import QueryRequest
+
 from bots.web_search_bot import WebSearchBot
-from utils.base_bot import BotError, BotErrorNoRetry
+from utils.base_bot import BotError
+
 
 @pytest.fixture
 def web_search_bot():
@@ -66,11 +68,11 @@ async def test_web_search_bot_help_command(web_search_bot):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     responses = []
     async for response in web_search_bot._process_message("help", query):
         responses.append(response)
-    
+
     # Verify help content is returned
     assert len(responses) == 1
     assert "Web Search Bot" in responses[0].text
@@ -87,11 +89,11 @@ async def test_web_search_bot_empty_query(web_search_bot):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     responses = []
     async for response in web_search_bot._process_message("", query):
         responses.append(response)
-    
+
     # Verify prompt for search query is returned
     assert len(responses) == 1
     assert "Please enter a search query" in responses[0].text
@@ -108,14 +110,14 @@ async def test_web_search_bot_no_api_key(web_search_bot):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Make sure the api_key is empty (it should be by default, but just to be sure)
     web_search_bot.api_key = ""
-    
+
     responses = []
     async for response in web_search_bot._process_message(search_query, query):
         responses.append(response)
-    
+
     # Verify response contains mock data notice
     assert len(responses) == 2  # "Searching..." and the results
     assert "Searching" in responses[0].text
@@ -133,10 +135,10 @@ async def test_web_search_with_api_key(web_search_bot, mock_search_results):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Set a fake API key
     web_search_bot.api_key = "fake_api_key"
-    
+
     # Mock the httpx.AsyncClient.get method
     with patch('httpx.AsyncClient.get') as mock_get:
         # Create a mock response
@@ -145,17 +147,17 @@ async def test_web_search_with_api_key(web_search_bot, mock_search_results):
         mock_response.json.return_value = mock_search_results
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
-        
+
         responses = []
         async for response in web_search_bot._process_message(search_query, query):
             responses.append(response)
-        
+
         # Verify httpx.get was called with the right parameters
         mock_get.assert_called_once()
         args, kwargs = mock_get.call_args
         assert kwargs['params']['q'] == search_query
         assert kwargs['params']['api_key'] == "fake_api_key"
-        
+
         # Verify response contains search results
         assert len(responses) == 2  # "Searching..." and the results
         assert "Searching" in responses[0].text
@@ -168,7 +170,7 @@ async def test_format_search_results(web_search_bot, mock_search_results):
     """Test formatting of search results."""
     query = "test query"
     formatted_results = web_search_bot._format_search_results(mock_search_results, query)
-    
+
     # Check that formatting contains key elements
     assert f"Search Results for '{query}'" in formatted_results
     assert "Test Result 1" in formatted_results
@@ -189,18 +191,18 @@ async def test_search_error_handling(web_search_bot):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Set a fake API key
     web_search_bot.api_key = "fake_api_key"
-    
+
     # Mock the _search_web method to raise an error
     with patch.object(web_search_bot, '_search_web', new_callable=AsyncMock) as mock_search:
         mock_search.side_effect = BotError("Search API error")
-        
+
         responses = []
         async for response in web_search_bot._process_message(search_query, query):
             responses.append(response)
-        
+
         # Verify error handling
         assert len(responses) == 2  # "Searching..." and the error
         assert "Searching" in responses[0].text

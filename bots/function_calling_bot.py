@@ -5,37 +5,37 @@ This is a demonstration of the Poe API function calling capabilities,
 allowing bots to make calls to predefined functions based on user requests.
 """
 
-import logging
 import json
-import math
+import logging
 import re
-import os
 from datetime import datetime
-from typing import AsyncGenerator, Dict, Any, List, Optional, Callable
-from fastapi_poe.types import PartialResponse, QueryRequest, ProtocolMessage, MetaResponse
-from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
+from typing import Any, AsyncGenerator, Dict, Optional
+
+from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
+
+from utils.base_bot import BaseBot
 
 logger = logging.getLogger(__name__)
 
 class FunctionCallingBot(BaseBot):
     """
     A bot that demonstrates function calling with the Poe API.
-    
+
     This bot can:
     - Calculate simple math expressions
     - Convert units
     - Get the current time
     - Generate random numbers
     """
-    
+
     bot_name = "FunctionCallingBot"
     bot_description = "A bot that demonstrates function calling with the Poe API."
     version = "1.0.0"
-    
+
     def __init__(self, **kwargs):
         """Initialize the FunctionCallingBot."""
         super().__init__(**kwargs)
-        
+
         # Define available functions
         self.functions = {
             "calculate": {
@@ -107,7 +107,7 @@ class FunctionCallingBot(BaseBot):
                 }
             }
         }
-        
+
         # Define function implementations
         self.function_implementations = {
             "calculate": self._calculate,
@@ -115,45 +115,45 @@ class FunctionCallingBot(BaseBot):
             "get_current_time": self._get_current_time,
             "generate_random_number": self._generate_random_number
         }
-    
+
     def _calculate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Calculate the result of a mathematical expression.
-        
+
         Args:
             params: Dictionary with the expression to evaluate
-            
+
         Returns:
             Dictionary with the calculation result
         """
         expression = params.get("expression", "")
-        
+
         try:
             # Simple sanitization - only allow basic arithmetic operations
             # This is a basic implementation - in production, you'd want more safety
             if not re.match(r'^[0-9+\-*/().\s]*$', expression):
                 return {"error": "Invalid expression. Only basic arithmetic operations are allowed."}
-            
+
             # Evaluate the expression
             result = eval(expression)
             return {"result": result}
         except Exception as e:
             return {"error": f"Error evaluating expression: {str(e)}"}
-    
+
     def _convert_units(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Convert a value from one unit to another.
-        
+
         Args:
             params: Dictionary with value, from_unit, and to_unit
-            
+
         Returns:
             Dictionary with the conversion result
         """
         value = params.get("value", 0)
         from_unit = params.get("from_unit", "").lower()
         to_unit = params.get("to_unit", "").lower()
-        
+
         # Define unit conversions
         conversions = {
             "km_to_miles": lambda x: x * 0.621371,
@@ -167,12 +167,12 @@ class FunctionCallingBot(BaseBot):
             "l_to_gal": lambda x: x * 0.264172,
             "gal_to_l": lambda x: x * 3.78541
         }
-        
+
         # Check if conversion is supported
         conversion_key = f"{from_unit}_to_{to_unit}"
         if conversion_key not in conversions:
             return {"error": f"Unsupported conversion from {from_unit} to {to_unit}"}
-        
+
         # Perform conversion
         converted_value = conversions[conversion_key](value)
         return {
@@ -181,22 +181,22 @@ class FunctionCallingBot(BaseBot):
             "to_value": converted_value,
             "to_unit": to_unit
         }
-    
+
     def _get_current_time(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get the current time in a specified timezone.
-        
+
         Args:
             params: Dictionary with timezone
-            
+
         Returns:
             Dictionary with the current time
         """
         timezone = params.get("timezone", "").lower()
-        
+
         # Get current time
         now = datetime.now()
-        
+
         # Format time based on timezone (simplified implementation)
         if timezone == "utc":
             return {
@@ -208,26 +208,26 @@ class FunctionCallingBot(BaseBot):
                 "time": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "timezone": "Local"
             }
-    
+
     def _generate_random_number(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generate a random number between min and max (inclusive).
-        
+
         Args:
             params: Dictionary with min and max values
-            
+
         Returns:
             Dictionary with the random number
         """
         import random
-        
+
         min_val = params.get("min", 1)
         max_val = params.get("max", 100)
-        
+
         # Validate input
         if min_val > max_val:
             min_val, max_val = max_val, min_val
-        
+
         # Generate random number
         random_number = random.randint(min_val, max_val)
         return {
@@ -235,34 +235,34 @@ class FunctionCallingBot(BaseBot):
             "min": min_val,
             "max": max_val
         }
-    
+
     def _call_function(self, function_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
         Call a function by name with parameters.
-        
+
         Args:
             function_name: Name of the function to call
             parameters: Function parameters
-            
+
         Returns:
             Result of the function call
         """
         if function_name not in self.function_implementations:
             return {"error": f"Unknown function: {function_name}"}
-        
+
         try:
             function = self.function_implementations[function_name]
             return function(parameters)
         except Exception as e:
             logger.error(f"Error calling function {function_name}: {str(e)}")
             return {"error": f"Error calling function {function_name}: {str(e)}"}
-    
+
     async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
         """
         Process the user's message and handle function calling.
         """
         message = message.strip()
-        
+
         # Help command
         if message.lower() in ["help", "?", "/help"]:
             yield PartialResponse(text="""
@@ -289,62 +289,69 @@ I can demonstrate the Poe API function calling capabilities. I can:
 Ask me to perform any of these functions!
 """)
             return
-        
+
         # Empty query
         if not message:
             yield PartialResponse(text="Please enter a request. Type 'help' for instructions.")
             return
-        
+
         # Send a MetaResponse with functions available
-        yield MetaResponse(content={
-            "functions": list(self.functions.values())
-        })
-        
+        # content keyword parameter may be missing from older versions of the library
+        # so we use dict construction for backwards compatibility
+        meta_dict = {"text": "", "content": {"functions": list(self.functions.values())}}
+        yield MetaResponse(**meta_dict)
+
         # Simulate a function call request based on the message
         # In a real implementation, the Poe platform would look at the meta response and
         # call our bot with the function to execute when appropriate
         function_call = self._determine_function_call(message)
-        
+
         if function_call:
             function_name = function_call.get("name")
             function_params = function_call.get("parameters", {})
-            
+
             # Show the function call (for demonstration)
             yield PartialResponse(text=f"```json\n{json.dumps({'function_call': function_call}, indent=2)}\n```\n\n")
-            
+
             # Call the function
-            result = self._call_function(function_name, function_params)
-            
+            if function_name is not None:
+                result = self._call_function(function_name, function_params)
+            else:
+                result = {"error": "No function name provided"}
+
             # Format and return the result
-            formatted_result = self._format_function_result(function_name, result)
-            yield PartialResponse(text=formatted_result)
+            if function_name is not None:
+                formatted_result = self._format_function_result(function_name, result)
+                yield PartialResponse(text=formatted_result)
+            else:
+                yield PartialResponse(text="Function name is missing.")
         else:
             yield PartialResponse(text="I'm not sure what function to call. Can you try being more specific?")
-    
+
     def _determine_function_call(self, message: str) -> Optional[Dict[str, Any]]:
         """
         Determine which function to call based on the message.
         This is a simple rule-based approach - in production, you might use a model.
-        
+
         Args:
             message: The user's message
-            
+
         Returns:
             Function call specification or None
         """
         message_lower = message.lower()
-        
+
         # Calculate
         if re.search(r'calculate|compute|solve|what\'?s|how much is|evaluate', message_lower):
             # Extract expression
             expression = re.sub(r'(calculate|compute|solve|what\'?s|how much is|evaluate)', '', message_lower, flags=re.IGNORECASE).strip()
             expression = re.sub(r'[?]', '', expression)  # Remove question marks
-            
+
             return {
                 "name": "calculate",
                 "parameters": {"expression": expression}
             }
-        
+
         # Convert units
         elif re.search(r'convert|how many', message_lower):
             # Try to extract value and units
@@ -359,18 +366,18 @@ Ask me to perform any of these functions!
                         "to_unit": to_unit
                     }
                 }
-        
+
         # Get current time
         elif re.search(r'time|clock|hour|date', message_lower):
             timezone = "local"
             if re.search(r'utc|gmt|universal|greenwich', message_lower):
                 timezone = "utc"
-                
+
             return {
                 "name": "get_current_time",
                 "parameters": {"timezone": timezone}
             }
-        
+
         # Generate random number
         elif re.search(r'random|pick|choose|generate', message_lower):
             # Try to extract min and max values
@@ -393,33 +400,33 @@ Ask me to perform any of these functions!
                         "max": 100
                     }
                 }
-        
+
         return None
-    
+
     def _format_function_result(self, function_name: str, result: Dict[str, Any]) -> str:
         """
         Format the function result into a readable response.
-        
+
         Args:
             function_name: Name of the function called
             result: Result of the function call
-            
+
         Returns:
             Formatted result message
         """
         if "error" in result:
             return f"Error: {result['error']}"
-        
+
         if function_name == "calculate":
             return f"Result: {result['result']}"
-        
+
         elif function_name == "convert_units":
             return f"{result['from_value']} {result['from_unit']} = {result['to_value']:.4f} {result['to_unit']}"
-        
+
         elif function_name == "get_current_time":
             return f"Current time ({result['timezone']}): {result['time']}"
-        
+
         elif function_name == "generate_random_number":
             return f"Random number between {result['min']} and {result['max']}: {result['random_number']}"
-        
+
         return f"Function result: {json.dumps(result)}"

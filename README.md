@@ -254,27 +254,27 @@ from utils.base_bot import BaseBot
 
 class WeatherBot(BaseBot):
     """Bot that provides weather information."""
-    
+
     bot_name = "WeatherBot"
     bot_description = "Provides weather information for specified locations"
     version = "1.0.0"
-    
+
     async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         # Extract the message
         user_message = self._extract_message(query)
-        
+
         # Handle bot info requests
         if user_message.lower().strip() == "bot info":
             metadata = self._get_bot_metadata()
             yield PartialResponse(text=json.dumps(metadata, indent=2))
             return
-        
+
         # Parse the message to get location
         location = user_message.strip()
-        
+
         # In a real bot, you would call a weather API here
         weather_info = f"The weather in {location} is sunny with a high of 75°F."
-        
+
         # Return the response
         yield PartialResponse(text=weather_info)
 ```
@@ -288,14 +288,14 @@ class ConfigurableBot(BaseBot):
     bot_name = "ConfigurableBot"
     bot_description = "A bot with custom configuration"
     version = "1.0.0"
-    
+
     # Custom settings
     max_message_length = 5000  # Override default (2000)
     stream_response = False    # Disable streaming
-    
+
     # You can add your own settings too
     api_key = "default-key"   # Custom setting
-    
+
     def __init__(self, **kwargs):
         # Initialize with settings from environment or kwargs
         settings = {
@@ -318,21 +318,21 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 class ErrorHandlingBot(BaseBot):
     # ...
-    
+
     async def _process_message(self, message: str, query: QueryRequest):
         try:
             # Some code that might fail
             if not self._is_valid_input(message):
                 # User error - don't retry
                 raise BotErrorNoRetry("Invalid input format. Please try something else.")
-                
+
             result = await self._fetch_external_data(message)
             if not result:
                 # Service error - can retry
                 raise BotError("Service unavailable. Please try again later.")
-                
+
             yield PartialResponse(text=result)
-            
+
         except Exception as e:
             # Handle unexpected errors
             self.logger.error(f"Unexpected error: {str(e)}", exc_info=True)
@@ -593,23 +593,41 @@ The CI/CD pipeline runs:
 
 You can check the status of the CI pipeline in the GitHub Actions tab of the repository.
 
-### Pre-Push Hook
+### Pre-Commit Hooks
 
-A pre-push hook is installed to run tests locally before pushing changes:
+Pre-commit hooks are used to ensure code quality by automatically checking your code before each commit and push.
 
-```bash
-# The hook will automatically run tests before each push
-git push  # Tests will run automatically
-
-# If tests fail, the push will be aborted
-```
-
-To install the pre-push hook on a new clone:
+#### Setup Instructions
 
 ```bash
-# Make the pre-push hook executable
-chmod +x .git/hooks/pre-push
+# Install the pre-commit tool
+pip install pre-commit
+
+# Install the pre-commit hooks
+pre-commit install --install-hooks
+
+# Also install pre-push hooks (for tests)
+pre-commit install --hook-type pre-push
 ```
+
+#### What the Hooks Check
+
+On every commit:
+- **Linting** (ruff): Checks code style and formatting
+- **Type checking** (pyright): Verifies correct type usage
+- **Security checks**: Detects private keys, debugging statements, etc.
+- **File formatting**: Fixes trailing whitespace, line endings, etc.
+
+On every push:
+- **Tests** (pytest): Runs the entire test suite
+
+#### Benefits
+
+- Prevents committing code with errors or poor quality
+- Provides immediate feedback on issues
+- Ensures consistent code quality across the team
+- Reduces the need for code review comments about style/formatting
+- Some issues are fixed automatically
 
 ## Resources
 

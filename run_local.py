@@ -10,8 +10,10 @@ import argparse
 import logging
 import os
 import sys
+
 import uvicorn
-from app import api, __version__
+
+from app import __version__
 from utils.config import settings
 
 # Get configured logger
@@ -50,11 +52,11 @@ def activate_venv():
     if getattr(sys, 'real_prefix', None) or hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix:
         # Already in a virtual environment
         return
-        
+
     # Check for virtual environment
     venv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv")
     if os.path.exists(venv_path):
-        print(f"Note: Running outside virtual environment. Consider activating it with:")
+        print("Note: Running outside virtual environment. Consider activating it with:")
         if os.name == 'nt':  # Windows
             print(f"    {venv_path}\\Scripts\\activate")
         else:  # Unix-like
@@ -70,38 +72,38 @@ def main():
     parser.add_argument("--port", type=int, default=settings.API_PORT, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--log-level", default=settings.LOG_LEVEL, 
+    parser.add_argument("--log-level", default=settings.LOG_LEVEL,
                         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                         help="Set the logging level")
     parser.add_argument("--no-banner", action="store_true", help="Don't display the banner")
-    
+
     args = parser.parse_args()
-    
+
     # Set environment variables
     if args.debug:
         os.environ["DEBUG"] = "true"
         os.environ["LOG_LEVEL"] = "DEBUG"
     else:
         os.environ["LOG_LEVEL"] = args.log_level
-    
+
     # Export environment variables for child processes
     os.environ["POE_API_HOST"] = args.host
     os.environ["POE_API_PORT"] = str(args.port)
-        
+
     # Check dependencies and environment
     activate_venv()
     check_dependencies()
-    
+
     # Display banner
     if not args.no_banner:
         print_banner(args)
-    
+
     # Log the runtime configuration
     logger.info(f"Starting Poe bots on {args.host}:{args.port}")
     logger.info(f"Debug mode: {args.debug}")
     logger.info(f"Log level: {args.log_level}")
     logger.info(f"Auto-reload: {args.reload}")
-    
+
     # Start the server
     uvicorn.run(
         "app:api",

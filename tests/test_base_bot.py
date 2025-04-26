@@ -20,28 +20,28 @@ test_instance_counter = 0
 
 class TestBot(BaseBot):
     """Test bot implementation for testing."""
-    
+
     bot_name = "TestBot"
     bot_description = "Test bot for unit testing"
     version = "1.0.0"
-    
+
     def __init__(self, **kwargs):
         global test_instance_counter
         test_instance_counter += 1
         path = f"/testbot_{test_instance_counter}"
         super().__init__(path=path, **kwargs)
-    
+
     async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response."""
         # Extract the query contents
         message = self._extract_message(query)
-        
+
         # Special handling for "bot info" - already handled in base class
         if message.lower().strip() == "bot info":
             async for resp in super().get_response(query):
                 yield resp
             return
-        
+
         # Handle different message types for testing
         try:
             if message == "error":
@@ -57,17 +57,17 @@ class TestBot(BaseBot):
                     await asyncio.sleep(0.01)  # Small delay to simulate streaming
             else:
                 yield PartialResponse(text=f"TestBot: {message}")
-                
+
         except BotErrorNoRetry as e:
             # Log the error (non-retryable)
             logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}")
             yield PartialResponse(text=f"Error (please try something else): {str(e)}")
-            
+
         except BotError as e:
             # Log the error (retryable)
             logger.error(f"[{self.bot_name}] Retryable error: {str(e)}")
             yield PartialResponse(text=f"Error (please try again): {str(e)}")
-            
+
         except Exception as e:
             # Log the unexpected error
             logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}")
@@ -76,21 +76,21 @@ class TestBot(BaseBot):
 
 class TestBotWithSettings(BaseBot):
     """Test bot with custom settings."""
-    
+
     bot_name = "SettingsBot"
     bot_description = "Test bot with custom settings"
     version = "2.0.0"
-    
+
     # Custom settings
     max_message_length = 100
     stream_response = False
-    
+
     def __init__(self, **kwargs):
         global test_instance_counter
         test_instance_counter += 1
         path = f"/settingsbot_{test_instance_counter}"
         super().__init__(path=path, **kwargs)
-        
+
     async def get_response(self, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
         """Process the query and generate a response with custom settings."""
         async for response in super().get_response(query):
@@ -190,7 +190,7 @@ async def collect_responses(bot, query):
 async def test_bot_initialization():
     """Test that a bot initializes correctly with default values."""
     bot = TestBot()
-    
+
     # Check bot attributes
     assert bot.bot_name == "TestBot"
     assert bot.bot_description == "Test bot for unit testing"
@@ -202,7 +202,7 @@ async def test_bot_initialization():
 async def test_bot_custom_settings():
     """Test that a bot can be initialized with custom settings."""
     bot = TestBotWithSettings()
-    
+
     # Check custom settings
     assert bot.bot_name == "SettingsBot"
     assert bot.max_message_length == 100  # Custom value
@@ -216,7 +216,7 @@ async def test_bot_create_with_settings():
         "stream_response": False
     }
     bot = TestBot(settings=settings)
-    
+
     # Check settings were applied
     assert bot.max_message_length == 500
     assert bot.stream_response is False
@@ -225,7 +225,7 @@ async def test_bot_create_with_settings():
 async def test_process_normal_message(test_bot, normal_query):
     """Test processing a normal message."""
     responses = await collect_responses(test_bot, normal_query)
-    
+
     # Check response
     assert len(responses) == 1
     assert isinstance(responses[0], PartialResponse)
@@ -244,10 +244,10 @@ async def test_process_bot_error(test_bot):
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Collect responses
     responses = await collect_responses(test_bot, query)
-    
+
     # The extract_message should return "error" which should trigger BotError
     assert len(responses) == 1
     assert "Test error" in responses[0].text
@@ -257,7 +257,7 @@ async def test_process_bot_error(test_bot):
 async def test_process_bot_error_no_retry(test_bot, error_no_retry_query):
     """Test processing a message that raises a BotErrorNoRetry."""
     responses = await collect_responses(test_bot, error_no_retry_query)
-    
+
     assert len(responses) == 1
     assert "Test error no retry" in responses[0].text
     assert "please try something else" in responses[0].text.lower()
@@ -266,7 +266,7 @@ async def test_process_bot_error_no_retry(test_bot, error_no_retry_query):
 async def test_process_exception(test_bot, exception_query):
     """Test processing a message that raises a general exception."""
     responses = await collect_responses(test_bot, exception_query)
-    
+
     assert len(responses) == 1
     assert "unexpected error occurred" in responses[0].text.lower()
 
@@ -274,7 +274,7 @@ async def test_process_exception(test_bot, exception_query):
 async def test_streaming_response(test_bot, stream_query):
     """Test streaming multiple response chunks."""
     responses = await collect_responses(test_bot, stream_query)
-    
+
     assert len(responses) == 3
     assert "Chunk 1" in responses[0].text
     assert "Chunk 2" in responses[1].text
@@ -284,12 +284,12 @@ async def test_streaming_response(test_bot, stream_query):
 async def test_bot_info_request(test_bot, bot_info_query):
     """Test requesting bot info metadata."""
     responses = await collect_responses(test_bot, bot_info_query)
-    
+
     assert len(responses) == 1
-    
+
     # Parse the JSON response
     info = json.loads(responses[0].text)
-    
+
     # Check metadata values
     assert info["name"] == "TestBot"
     assert info["description"] == "Test bot for unit testing"
@@ -302,7 +302,7 @@ async def test_bot_info_request(test_bot, bot_info_query):
 async def test_extract_message_formats():
     """Test that _extract_message handles different query formats correctly."""
     bot = TestBot()
-    
+
     # Test list format with dictionary (new format)
     query1 = QueryRequest(
         version="1.0",
@@ -312,7 +312,7 @@ async def test_extract_message_formats():
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Test empty list
     query2 = QueryRequest(
         version="1.0",
@@ -322,11 +322,11 @@ async def test_extract_message_formats():
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Extract messages
     msg1 = bot._extract_message(query1)
     msg2 = bot._extract_message(query2)
-    
+
     # Verify results
     assert "test message" in msg1
     assert msg2  # Should not be empty/None even with empty input
@@ -336,21 +336,21 @@ async def test_message_validation():
     """Test that message validation works correctly."""
     bot = TestBot()
     original_max_length = bot.max_message_length
-    
+
     try:
         # Set a very short max length temporarily
         bot.max_message_length = 10
-        
+
         # Check valid message
         valid, _ = bot._validate_message("short")
         assert valid is True
-        
+
         # Check too long message
         valid, error = bot._validate_message("this message is way too long for the limit")
         assert valid is False
-        assert "too long" in error.lower()
-        assert "10" in error  # Should mention the limit
-    
+        assert error is not None and "too long" in error.lower()
+        assert error is not None and "10" in error  # Should mention the limit
+
     finally:
         # Restore original setting
         bot.max_message_length = original_max_length
@@ -362,13 +362,13 @@ async def test_meta_response():
         async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
             message = self._extract_message(query)
             if message == "meta":
-                # Use the correct MetaResponse format 
+                # Use the correct MetaResponse format
                 yield PartialResponse(text=json.dumps({"test_key": "test_value"}))
             else:
                 yield PartialResponse(text="Not meta")
-    
+
     bot = MetaBot()
-    
+
     # Create meta query
     meta_query = QueryRequest(
         version="1.0",
@@ -378,10 +378,10 @@ async def test_meta_response():
         conversation_id="test_conversation",
         message_id="test_message"
     )
-    
+
     # Get responses
     responses = await collect_responses(bot, meta_query)
-    
+
     # Verify response
     assert len(responses) == 1
     assert isinstance(responses[0], PartialResponse)
