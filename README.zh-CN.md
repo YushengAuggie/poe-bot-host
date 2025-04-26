@@ -174,6 +174,16 @@ python test_bot.py --schema
 
 ### 使用 curl 手动测试
 
+要使用 curl 手动测试您的机器人，首先确保您的服务器正在运行：
+
+```bash
+# 在一个终端中启动服务器
+source venv/bin/activate  # 确保您的虚拟环境已激活
+./run_local.sh  # 或 python run_local.py
+```
+
+然后在另一个终端中，您可以发送请求：
+
 ```bash
 # 获取可用机器人列表
 curl http://localhost:8000/bots
@@ -181,9 +191,10 @@ curl http://localhost:8000/bots
 # 检查 API 健康状况
 curl http://localhost:8000/health
 
-# 测试特定机器人
+# 测试特定机器人（将 echobot 替换为您的机器人小写名称）
 curl -X POST "http://localhost:8000/echobot" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer dummytoken" \
   -d '{
     "version": "1.0",
     "type": "query",

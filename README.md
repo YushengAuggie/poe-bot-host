@@ -178,6 +178,16 @@ python test_bot.py --schema
 
 ### Manual Testing with curl
 
+To test your bots manually with curl, first make sure your server is running:
+
+```bash
+# Start the server in one terminal
+source venv/bin/activate  # Make sure your virtual environment is activated
+./run_local.sh  # Or python run_local.py
+```
+
+Then in a separate terminal, you can send requests:
+
 ```bash
 # Get a list of available bots
 curl http://localhost:8000/bots
@@ -185,9 +195,10 @@ curl http://localhost:8000/bots
 # Check API health
 curl http://localhost:8000/health
 
-# Test a specific bot
+# Test a specific bot (replace echobot with your bot's name in lowercase)
 curl -X POST "http://localhost:8000/echobot" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer dummytoken" \
   -d '{
     "version": "1.0",
     "type": "query",
