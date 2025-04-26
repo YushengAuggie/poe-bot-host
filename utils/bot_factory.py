@@ -11,6 +11,7 @@ from utils.base_bot import BaseBot
 
 logger = logging.getLogger(__name__)
 
+
 class BotFactory:
     """Factory for creating and managing Poe bots."""
 
@@ -25,12 +26,23 @@ class BotFactory:
         Returns:
             A FastAPI app with the given bots
         """
+        # Remove duplicates by class name to avoid path conflicts
+        seen_classes = {}
+        unique_bot_classes = []
+        for bot_class in bot_classes:
+            class_name = bot_class.__name__
+            if class_name not in seen_classes:
+                seen_classes[class_name] = True
+                unique_bot_classes.append(bot_class)
+            else:
+                logger.warning(f"Duplicate bot class found: {class_name}, skipping")
+
         # Create bot instances
-        bots = [bot_class() for bot_class in bot_classes]
+        bots = [bot_class() for bot_class in unique_bot_classes]
 
         # Log the bots that were created
         for bot in bots:
-            if hasattr(bot, 'bot_name'):
+            if hasattr(bot, "bot_name"):
                 logger.info(f"Created bot: {bot.bot_name}")
             else:
                 logger.info(f"Created bot: {bot.__class__.__name__}")
@@ -56,15 +68,20 @@ class BotFactory:
             bot_classes = []
 
             # First try to get all submodules and their classes
-            for _, submodule_name, is_pkg in pkgutil.iter_modules(module.__path__, module.__name__ + '.'):
+            for _, submodule_name, is_pkg in pkgutil.iter_modules(
+                module.__path__, module.__name__ + "."
+            ):
                 if not is_pkg:  # If it's not a package but a module
                     try:
                         submodule = importlib.import_module(submodule_name)
                         for name, obj in inspect.getmembers(submodule):
                             # Skip BaseBot itself, only include concrete subclasses
-                            if (inspect.isclass(obj) and
-                                obj is not BaseBot and obj is not PoeBot and  # Skip base classes
-                                (issubclass(obj, BaseBot) or issubclass(obj, PoeBot))):
+                            if (
+                                inspect.isclass(obj)
+                                and obj is not BaseBot
+                                and obj is not PoeBot  # Skip base classes
+                                and (issubclass(obj, BaseBot) or issubclass(obj, PoeBot))
+                            ):
                                 bot_classes.append(obj)
                                 logger.debug(f"Found bot class: {obj.__name__} in {submodule_name}")
                     except Exception as e:
@@ -73,10 +90,14 @@ class BotFactory:
             # Also check for direct classes in the module
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if (inspect.isclass(attr) and
-                    attr is not BaseBot and attr is not PoeBot and  # Skip base classes
-                    (issubclass(attr, BaseBot) or issubclass(attr, PoeBot))):
-                    if attr not in bot_classes:  # Avoid duplicates
+                if (
+                    inspect.isclass(attr)
+                    and attr is not BaseBot
+                    and attr is not PoeBot  # Skip base classes
+                    and (issubclass(attr, BaseBot) or issubclass(attr, PoeBot))
+                ):
+                    # Use class name to deduplicate
+                    if attr.__name__ not in [bc.__name__ for bc in bot_classes]:
                         bot_classes.append(attr)
                         logger.debug(f"Found bot class: {attr.__name__} directly in {module_name}")
 
@@ -102,7 +123,7 @@ class BotFactory:
         bot_info = {}
 
         for bot_class in bot_classes:
-            name = getattr(bot_class, 'bot_name', bot_class.__name__)
+            name = getattr(bot_class, "bot_name", bot_class.__name__)
             description = bot_class.__doc__ or "No description available"
             bot_info[name] = description.strip()
 

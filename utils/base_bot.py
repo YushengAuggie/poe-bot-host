@@ -10,15 +10,21 @@ from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 class BotError(Exception):
     """Base exception for bot errors that should be retried."""
+
     pass
+
 
 class BotErrorNoRetry(Exception):
     """Exception for bot errors that should not be retried."""
+
     pass
 
-T = TypeVar('T', bound='BaseBot')
+
+T = TypeVar("T", bound="BaseBot")
+
 
 class BaseBot(PoeBot):
     """Base class for all Poe bots with common functionality."""
@@ -35,17 +41,29 @@ class BaseBot(PoeBot):
         self,
         path: Optional[str] = None,
         access_key: Optional[str] = None,
+        bot_name: Optional[str] = None,
         settings: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         """Initialize the bot with a unique path based on the bot name.
 
         Args:
             path: Optional path to use (defaults to bot_name in lowercase)
             access_key: Optional access key for authentication
+            bot_name: Optional bot name to override class attribute
             settings: Optional dictionary of settings to override defaults
             **kwargs: Additional arguments to pass to the parent class
         """
+        # Make a copy of class attributes to ensure they're set before they're used
+        if hasattr(self.__class__, "bot_name"):
+            self.bot_name = self.__class__.bot_name
+        else:
+            self.bot_name = self.__class__.__name__
+
+        # Override with parameter if provided
+        if bot_name is not None:
+            self.bot_name = bot_name
+
         # Generate a path based on the bot name if not provided
         if path is None:
             path = f"/{self.bot_name.lower()}"
@@ -73,7 +91,9 @@ class BaseBot(PoeBot):
         """
         return cls(**kwargs)
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response.
 
         Subclasses should override this method to implement their logic directly.
@@ -180,17 +200,36 @@ class BaseBot(PoeBot):
         Returns:
             Dictionary of bot metadata
         """
+        # Use class attributes if instance attributes are not set
+        bot_name = (
+            self.bot_name
+            if hasattr(self, "bot_name") and self.bot_name is not None
+            else self.__class__.bot_name
+        )
+        bot_description = (
+            self.bot_description
+            if hasattr(self, "bot_description") and self.bot_description is not None
+            else self.__class__.bot_description
+        )
+        version = (
+            self.version
+            if hasattr(self, "version") and self.version is not None
+            else self.__class__.version
+        )
+
         return {
-            "name": self.bot_name,
-            "description": self.bot_description,
-            "version": self.version,
+            "name": bot_name,
+            "description": bot_description,
+            "version": version,
             "settings": {
                 "max_message_length": self.max_message_length,
-                "stream_response": self.stream_response
-            }
+                "stream_response": self.stream_response,
+            },
         }
 
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def _process_message(
+        self, message: str, query: QueryRequest
+    ) -> AsyncGenerator[PartialResponse, None]:
         """[DEPRECATED] Process the message and generate a response.
 
         DEPRECATED: This method is deprecated in favor of directly overriding get_response.
@@ -203,13 +242,18 @@ class BaseBot(PoeBot):
         Yields:
             Response chunks as PartialResponse objects
         """
-        logger.warning(f"[{self.bot_name}] _process_message is deprecated, override get_response instead")
+        logger.warning(
+            f"[{self.bot_name}] _process_message is deprecated, override get_response instead"
+        )
         # Default implementation for backward compatibility, just forwards to get_response
         # This will use the get_response of the superclass (BaseBot), not of the subclass,
         # which is why subclasses should override get_response directly instead.
-        modified_query = query  # In a real backward compatibility layer, we might need to modify the query
+        modified_query = (
+            query  # In a real backward compatibility layer, we might need to modify the query
+        )
         async for response_chunk in super().get_response(modified_query):
-            yield response_chunk
+            if isinstance(response_chunk, PartialResponse):
+                yield response_chunk
 
     def _validate_message(self, message: str) -> Tuple[bool, Optional[str]]:
         """Validate the user's message.
@@ -222,7 +266,10 @@ class BaseBot(PoeBot):
         """
         # Check if the message is too long
         if len(message) > self.max_message_length:
-            return False, f"Message is too long. Maximum length is {self.max_message_length} characters."
+            return (
+                False,
+                f"Message is too long. Maximum length is {self.max_message_length} characters.",
+            )
 
         # Message is valid
         return True, None
