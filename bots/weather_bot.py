@@ -18,6 +18,7 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
 
+
 class WeatherBot(BaseBot):
     """
     A bot that provides weather information for any location.
@@ -56,7 +57,7 @@ class WeatherBot(BaseBot):
             params = {
                 "q": location,
                 "appid": self.api_key,
-                "units": "metric"  # Use metric units (Celsius)
+                "units": "metric",  # Use metric units (Celsius)
             }
 
             async with httpx.AsyncClient() as client:
@@ -83,33 +84,21 @@ class WeatherBot(BaseBot):
                 "temp_min": 20.0,
                 "temp_max": 25.0,
                 "pressure": 1012,
-                "humidity": 65
+                "humidity": 65,
             },
-            "weather": [
-                {
-                    "id": 800,
-                    "main": "Clear",
-                    "description": "clear sky",
-                    "icon": "01d"
-                }
-            ],
-            "wind": {
-                "speed": 3.6,
-                "deg": 160
-            },
-            "clouds": {
-                "all": 0
-            },
+            "weather": [{"id": 800, "main": "Clear", "description": "clear sky", "icon": "01d"}],
+            "wind": {"speed": 3.6, "deg": 160},
+            "clouds": {"all": 0},
             "sys": {
                 "country": "Mock",
                 "sunrise": int(datetime.now().timestamp()),
-                "sunset": int(datetime.now().timestamp()) + 43200  # 12 hours later
+                "sunset": int(datetime.now().timestamp()) + 43200,  # 12 hours later
             },
             "dt": int(datetime.now().timestamp()),
             "timezone": 0,
             "id": 123456,
             "cod": 200,
-            "mock_data": True  # Flag to indicate this is mock data
+            "mock_data": True,  # Flag to indicate this is mock data
         }
 
     def _format_weather_data(self, weather_data: Dict[str, Any]) -> str:
@@ -145,12 +134,14 @@ class WeatherBot(BaseBot):
         # Get time information
         dt = weather_data.get("dt", 0)
         timezone_offset = weather_data.get("timezone", 0)
-        local_time = datetime.utcfromtimestamp(dt + timezone_offset).strftime('%Y-%m-%d %H:%M:%S')
+        local_time = datetime.utcfromtimestamp(dt + timezone_offset).strftime("%Y-%m-%d %H:%M:%S")
 
         # Create response
         if weather_data.get("mock_data", False):
             response = f"## 🌤️ Weather for {location}\n\n"
-            response += "⚠️ **Note:** Using mock data. Set OPENWEATHER_API_KEY for real weather data.\n\n"
+            response += (
+                "⚠️ **Note:** Using mock data. Set OPENWEATHER_API_KEY for real weather data.\n\n"
+            )
         else:
             response = f"## 🌤️ Weather for {location}, {country}\n\n"
 
@@ -169,7 +160,9 @@ class WeatherBot(BaseBot):
 
         return response
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response with weather information."""
         try:
             # Extract the query contents
@@ -188,7 +181,8 @@ class WeatherBot(BaseBot):
 
             # Help command
             if message.lower() in ["help", "?", "/help"]:
-                yield PartialResponse(text="""
+                yield PartialResponse(
+                    text="""
 ## 🌤️ Weather Bot
 
 I can provide weather information for any location around the world.
@@ -200,17 +194,22 @@ Just type a city or location name, for example:
 - `Paris, France`
 
 I'll give you the current weather conditions, temperature, and more.
-""")
+"""
+                )
                 return
 
             # Empty query
             if not message:
-                yield PartialResponse(text="Please enter a location name. Type 'help' for instructions.")
+                yield PartialResponse(
+                    text="Please enter a location name. Type 'help' for instructions."
+                )
                 return
 
             # Check for specific commands/keywords
             if message.lower() in ["current location", "my location", "here"]:
-                yield PartialResponse(text="Please specify a location by name (e.g., 'New York', 'London, UK').")
+                yield PartialResponse(
+                    text="Please specify a location by name (e.g., 'New York', 'London, UK')."
+                )
                 return
 
             # Get weather data

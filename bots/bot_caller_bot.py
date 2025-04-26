@@ -16,6 +16,7 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
 
+
 class BotCallerBot(BaseBot):
     """
     A bot that can call other bots in the framework.
@@ -51,7 +52,9 @@ class BotCallerBot(BaseBot):
             logger.error(f"Error listing bots: {str(e)}")
             raise BotError(f"Failed to list bots: {str(e)}")
 
-    async def _call_bot(self, bot_name: str, message: str, user_id: str, conversation_id: str) -> AsyncGenerator[PartialResponse, None]:
+    async def _call_bot(
+        self, bot_name: str, message: str, user_id: str, conversation_id: str
+    ) -> AsyncGenerator[PartialResponse, None]:
         """Call another bot with the given message."""
         try:
             # Ensure bot name is lowercase as expected by the API
@@ -61,21 +64,16 @@ class BotCallerBot(BaseBot):
             payload = {
                 "version": "1.0",
                 "type": "query",
-                "query": [
-                    {"role": "user", "content": message}
-                ],
+                "query": [{"role": "user", "content": message}],
                 "user_id": user_id,
                 "conversation_id": conversation_id,
-                "message_id": f"botcaller-{conversation_id}"
+                "message_id": f"botcaller-{conversation_id}",
             }
 
             # Make a POST request to the bot's endpoint
             async with httpx.AsyncClient() as client:
                 async with client.stream(
-                    "POST",
-                    f"{self.base_url}/{bot_name}",
-                    json=payload,
-                    timeout=30
+                    "POST", f"{self.base_url}/{bot_name}", json=payload, timeout=30
                 ) as response:
                     # Raise exception for HTTP errors
                     response.raise_for_status()
@@ -83,20 +81,20 @@ class BotCallerBot(BaseBot):
                     # Stream the response back
                     async for chunk in response.aiter_raw():
                         # Handle different response formats (text, JSON, etc.)
-                        chunk_str = chunk.decode('utf-8', 'replace')
+                        chunk_str = chunk.decode("utf-8", "replace")
                         # Skip empty lines
                         if not chunk_str.strip():
                             continue
 
                         # Try to parse as JSON
                         try:
-                            data = json.loads(chunk_str.replace('data: ', ''))
-                            if 'text' in data:
-                                yield PartialResponse(text=data['text'])
+                            data = json.loads(chunk_str.replace("data: ", ""))
+                            if "text" in data:
+                                yield PartialResponse(text=data["text"])
                         except json.JSONDecodeError:
                             # Handle non-JSON responses
-                            if chunk_str.startswith('data: '):
-                                chunk_str = chunk_str.replace('data: ', '')
+                            if chunk_str.startswith("data: "):
+                                chunk_str = chunk_str.replace("data: ", "")
                             yield PartialResponse(text=chunk_str)
 
                     # Return one final response if no data was yielded
@@ -109,7 +107,9 @@ class BotCallerBot(BaseBot):
             logger.error(f"Error calling bot {bot_name}: {str(e)}")
             raise BotError(f"Failed to call bot {bot_name}: {str(e)}")
 
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def _process_message(
+        self, message: str, query: QueryRequest
+    ) -> AsyncGenerator[PartialResponse, None]:
         """Process the user message and call appropriate bot or action. (Deprecated)"""
         logger.warning(
             f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."
@@ -140,14 +140,18 @@ class BotCallerBot(BaseBot):
             parts = message[5:].strip().split(" ", 1)
 
             if len(parts) < 2:
-                yield PartialResponse(text="Error: Please provide both a bot name and a message.\nExample: `call EchoBot Hello, world!`")
+                yield PartialResponse(
+                    text="Error: Please provide both a bot name and a message.\nExample: `call EchoBot Hello, world!`"
+                )
                 return
 
             bot_name, bot_message = parts
             yield PartialResponse(text=f"Calling {bot_name}...\n\n")
 
             try:
-                async for response_chunk in self._call_bot(bot_name, bot_message, user_id, conversation_id):
+                async for response_chunk in self._call_bot(
+                    bot_name, bot_message, user_id, conversation_id
+                ):
                     yield response_chunk
             except Exception as e:
                 yield PartialResponse(text=f"Error calling {bot_name}: {str(e)}")
@@ -160,7 +164,8 @@ class BotCallerBot(BaseBot):
             return
 
         # Handle help or unknown commands
-        yield PartialResponse(text="""
+        yield PartialResponse(
+            text="""
 ## Bot Caller Bot
 
 I can call other bots in the framework. Here are my commands:
@@ -170,9 +175,12 @@ I can call other bots in the framework. Here are my commands:
 - `echo <message>` - Echo a message (for testing)
 
 Example: `call EchoBot Hello, world!`
-""")
+"""
+        )
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """
         Process the query and call appropriate bot or action.
 
@@ -203,7 +211,9 @@ Example: `call EchoBot Hello, world!`
                         bot_list.append(f"- **{bot_name}**: {description}")
 
                     yield PartialResponse(text="## Available Bots\n\n" + "\n".join(bot_list))
-                    yield PartialResponse(text="\n\nTo call a bot, use: `call <bot_name> <message>`")
+                    yield PartialResponse(
+                        text="\n\nTo call a bot, use: `call <bot_name> <message>`"
+                    )
                     return
                 except Exception as e:
                     yield PartialResponse(text=f"Error listing bots: {str(e)}")
@@ -215,14 +225,18 @@ Example: `call EchoBot Hello, world!`
                 parts = message[5:].strip().split(" ", 1)
 
                 if len(parts) < 2:
-                    yield PartialResponse(text="Error: Please provide both a bot name and a message.\nExample: `call EchoBot Hello, world!`")
+                    yield PartialResponse(
+                        text="Error: Please provide both a bot name and a message.\nExample: `call EchoBot Hello, world!`"
+                    )
                     return
 
                 bot_name, bot_message = parts
                 yield PartialResponse(text=f"Calling {bot_name}...\n\n")
 
                 try:
-                    async for response_chunk in self._call_bot(bot_name, bot_message, user_id, conversation_id):
+                    async for response_chunk in self._call_bot(
+                        bot_name, bot_message, user_id, conversation_id
+                    ):
                         yield response_chunk
                 except Exception as e:
                     yield PartialResponse(text=f"Error calling {bot_name}: {str(e)}")
@@ -235,7 +249,8 @@ Example: `call EchoBot Hello, world!`
                 return
 
             # Handle help or unknown commands
-            yield PartialResponse(text="""
+            yield PartialResponse(
+                text="""
 ## Bot Caller Bot
 
 I can call other bots in the framework. Here are my commands:
@@ -245,7 +260,8 @@ I can call other bots in the framework. Here are my commands:
 - `echo <message>` - Echo a message (for testing)
 
 Example: `call EchoBot Hello, world!`
-""")
+"""
+            )
 
         except BotErrorNoRetry as e:
             # Log the error (non-retryable)

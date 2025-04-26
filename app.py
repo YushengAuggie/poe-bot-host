@@ -19,6 +19,7 @@ logger = logging.getLogger("poe_bots.app")
 
 __version__ = "1.0.0"
 
+
 def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
     """Create and configure the FastAPI app with all available bots.
 
@@ -44,7 +45,7 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
         logger.exception("Unhandled exception occurred:")
         return JSONResponse(
             status_code=500,
-            content={"error": "An internal server error occurred", "detail": str(exc)}
+            content={"error": "An internal server error occurred", "detail": str(exc)},
         )
 
     # Add a health check endpoint
@@ -60,8 +61,8 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
             "environment": {
                 "debug": settings.DEBUG,
                 "log_level": settings.LOG_LEVEL,
-                "allow_without_key": settings.ALLOW_WITHOUT_KEY
-            }
+                "allow_without_key": settings.ALLOW_WITHOUT_KEY,
+            },
         }
 
     # Add a bot list endpoint
@@ -71,6 +72,7 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
         return BotFactory.get_available_bots()
 
     return api
+
 
 # Create the API
 api = create_api()
@@ -87,12 +89,14 @@ image = (
     .copy_local_dir("tests", "/root/tests")
 )
 
+
 @app.function(image=image)
 @asgi_app()
 def fastapi_app():
     """Create and return the FastAPI app for Modal deployment."""
     logger.info("Starting FastAPI app for Modal deployment")
     return api
+
 
 # This allows the app to be run locally with 'python app.py'
 if __name__ == "__main__":

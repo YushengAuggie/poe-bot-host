@@ -9,13 +9,16 @@ from utils.base_bot import BaseBot
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 class UppercaseBot(BaseBot):
     """A bot that converts the user's message to uppercase."""
 
     # Override the bot name
     bot_name = "UppercaseBot"
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response.
 
         Args:

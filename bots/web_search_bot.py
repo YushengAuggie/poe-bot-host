@@ -16,6 +16,7 @@ from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
 
+
 class WebSearchBot(BaseBot):
     """
     A bot that can search the web using the Google Search API.
@@ -57,12 +58,7 @@ class WebSearchBot(BaseBot):
 
             # Use the SerpAPI for web search
             url = "https://serpapi.com/search"
-            params = {
-                "q": query,
-                "api_key": self.api_key,
-                "engine": "google",
-                "num": num_results
-            }
+            params = {"q": query, "api_key": self.api_key, "engine": "google", "num": num_results}
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, params=params)
@@ -92,29 +88,31 @@ class WebSearchBot(BaseBot):
                     "position": 1,
                     "title": f"Example result 1 for '{query}'",
                     "link": "https://example.com/1",
-                    "snippet": f"This is a mock result for the query '{query}'. In a real implementation, this would be an actual search result."
+                    "snippet": f"This is a mock result for the query '{query}'. In a real implementation, this would be an actual search result.",
                 },
                 {
                     "position": 2,
                     "title": f"Example result 2 for '{query}'",
                     "link": "https://example.com/2",
-                    "snippet": "Another mock result for testing purposes. Replace this with actual API integration."
+                    "snippet": "Another mock result for testing purposes. Replace this with actual API integration.",
                 },
                 {
                     "position": 3,
                     "title": f"Example result 3 for '{query}'",
                     "link": "https://example.com/3",
-                    "snippet": "This is a mock result. Please set SERP_API_KEY to get real search results."
-                }
+                    "snippet": "This is a mock result. Please set SERP_API_KEY to get real search results.",
+                },
             ],
-            "mock_response": True  # Flag to indicate this is a mock response
+            "mock_response": True,  # Flag to indicate this is a mock response
         }
 
     def _format_search_results(self, results: Dict[str, Any], query: str) -> str:
         """Format search results into a readable markdown response."""
         if results.get("mock_response", False):
             formatted = f"## 🔍 Search Results for '{query}'\n\n"
-            formatted += "⚠️ **Note:** Using mock results. Set SERP_API_KEY for real search results.\n\n"
+            formatted += (
+                "⚠️ **Note:** Using mock results. Set SERP_API_KEY for real search results.\n\n"
+            )
         else:
             formatted = f"## 🔍 Search Results for '{query}'\n\n"
 
@@ -133,7 +131,9 @@ class WebSearchBot(BaseBot):
 
         return formatted
 
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def _process_message(
+        self, message: str, query: QueryRequest
+    ) -> AsyncGenerator[PartialResponse, None]:
         """Process the user's search query and return search results. (Deprecated)"""
         logger.warning(
             f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."
@@ -144,7 +144,9 @@ class WebSearchBot(BaseBot):
             if isinstance(response, PartialResponse):
                 yield response
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and return search results."""
         try:
             # Extract the message
@@ -159,7 +161,8 @@ class WebSearchBot(BaseBot):
 
             # Help command
             if message.lower() in ["help", "?", "/help"]:
-                yield PartialResponse(text="""
+                yield PartialResponse(
+                    text="""
 ## 🔍 Web Search Bot
 
 Enter any search query and I'll search the web for information.
@@ -170,12 +173,15 @@ Examples:
 - `best restaurants in new york`
 
 Note: For the best experience, be specific in your search queries.
-""")
+"""
+                )
                 return
 
             # Empty query
             if not message:
-                yield PartialResponse(text="Please enter a search query. Type 'help' for instructions.")
+                yield PartialResponse(
+                    text="Please enter a search query. Type 'help' for instructions."
+                )
                 return
 
             # Perform the search
