@@ -63,9 +63,13 @@ include = ["utils", "bots", "tests", "*.py"]
 exclude = ["venv", "**/node_modules", "**/__pycache__"]
 venvPath = "."
 venv = "venv"
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
 reportMissingImports = true
 reportMissingTypeStubs = false
+strictParameterNoneValue = true
+reportUnusedImport = true
+reportUnusedVariable = true
+reportImplicitStringConcatenation = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

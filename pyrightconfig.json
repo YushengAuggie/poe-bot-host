@@ -14,6 +14,10 @@
   ],
   "reportMissingImports": false,
   "reportMissingModuleSource": false,
-  "pythonVersion": "3.7",
-  "typeCheckingMode": "basic"
+  "pythonVersion": "3.9",
+  "typeCheckingMode": "standard",
+  "strictParameterNoneValue": true,
+  "reportUnusedImport": true,
+  "reportUnusedVariable": true,
+  "reportImplicitStringConcatenation": true
 }
