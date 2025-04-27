@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Union, cast
 
 # Set up detailed logging for this module
 logger = logging.getLogger(__name__)
@@ -8,10 +8,16 @@ logger.setLevel(logging.DEBUG)
 
 try:
     import modal
+    from modal import Secret
     logger.debug("Modal package imported successfully")
 except ImportError:
     logger.warning("Modal package not available")
     modal = None
+    # Type stub for when modal is not available
+    class Secret:
+        @classmethod
+        def from_name(cls, name: str) -> "Secret":
+            return cast("Secret", None)
 
 
 def get_api_key(key_name: str) -> str:
@@ -30,20 +36,20 @@ def get_api_key(key_name: str) -> str:
     logger.debug(f"Attempting to get API key: {key_name}")
 
     # First check environment variables with the exact name (case-sensitive)
-    key = os.environ.get(key_name)
+    key: Optional[str] = os.environ.get(key_name)
     if key:
         logger.debug(f"Found {key_name} in environment variables")
         return key
 
     # Try with lowercase (Modal sometimes provides env vars in lowercase)
-    key_lowercase = os.environ.get(key_name.lower())
+    key_lowercase: Optional[str] = os.environ.get(key_name.lower())
     if key_lowercase:
         logger.debug(f"Found {key_name.lower()} in environment variables")
         return key_lowercase
 
     # Try looking for a local secret key for testing
-    local_key_name = f"LOCAL_{key_name}"
-    local_key = os.environ.get(local_key_name)
+    local_key_name: str = f"LOCAL_{key_name}"
+    local_key: Optional[str] = os.environ.get(local_key_name)
     if local_key:
         logger.debug(f"Found {local_key_name} in environment")
         return local_key
@@ -53,7 +59,7 @@ def get_api_key(key_name: str) -> str:
         logger.debug("Modal is available, checking if we're running in Modal")
 
         # Debug Modal state
-        is_local = getattr(modal, "is_local", lambda: True)()
+        is_local: bool = getattr(modal, "is_local", lambda: True)()
         logger.debug(f"Modal.is_local(): {is_local}")
 
         if not is_local:
@@ -62,12 +68,12 @@ def get_api_key(key_name: str) -> str:
                 # Try using Modal's Secret API, which may or may not be available
                 # in the runtime context
                 try:
-                    secret = modal.Secret.from_name(key_name)
+                    secret: Secret = Secret.from_name(key_name)
                     logger.debug(f"Successfully retrieved secret reference for {key_name}")
 
                     # These methods may not be available in the runtime
                     try:
-                        value = getattr(secret, "get", lambda: None)()
+                        value: Optional[str] = getattr(secret, "get", lambda: None)()
                         if value:
                             logger.debug("Got value using secret.get()")
                             return value

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import AsyncGenerator, Union
+from typing import Any, AsyncGenerator, Dict, Union, cast
 
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
