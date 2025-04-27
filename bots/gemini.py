@@ -27,7 +27,20 @@ class GeminiClientStub:
             def __init__(self):
                 self.text = f"Gemini API ({model_name}) is not available. Please install the google-generativeai package."
                 self.parts = []  # Add parts property for multimodal support
+
         return StubResponse()
+
+    def generate_content_stream(self, contents: Any):
+        # Return an iterable that yields one chunk for the stub message
+        model_name = self.model_name  # Store locally for use in inner class
+
+        class StubStreamResponse:
+            def __init__(self):
+                self.text = f"Gemini API ({model_name}) is not available. Please install the google-generativeai package."
+                self.parts = []  # Add parts property for multimodal support
+
+        # Return a list with a single item, which is compatible with the 'for chunk in response:' pattern
+        return [StubStreamResponse()]
 
 
 # Initialize client globally
@@ -90,16 +103,18 @@ class GeminiBaseBot(BaseBot):
             Dictionary with mime_type and data, or None if unsupported
         """
         # Check if attachment is an image and supported
-        if not hasattr(attachment, "content_type") or attachment.content_type not in self.supported_image_types:
-            logger.warning(f"Unsupported attachment type: {getattr(attachment, 'content_type', 'unknown')}")
+        if (
+            not hasattr(attachment, "content_type")
+            or attachment.content_type not in self.supported_image_types
+        ):
+            logger.warning(
+                f"Unsupported attachment type: {getattr(attachment, 'content_type', 'unknown')}"
+            )
             return None
 
         # Access content via __dict__ to satisfy type checker (content is added by Poe but not in type definition)
         if hasattr(attachment, "content") and attachment.__dict__.get("content"):
-            return {
-                "mime_type": attachment.content_type,
-                "data": attachment.__dict__["content"]
-            }
+            return {"mime_type": attachment.content_type, "data": attachment.__dict__["content"]}
         return None
 
     async def get_response(
@@ -150,12 +165,17 @@ class GeminiBaseBot(BaseBot):
                             try:
                                 # Import inside try block to avoid module-level import errors
                                 import google.generativeai as genai
-                                image_parts.append({
-                                    "mime_type": image_data["mime_type"],
-                                    "data": image_data["data"]
-                                })
+
+                                image_parts.append(
+                                    {
+                                        "mime_type": image_data["mime_type"],
+                                        "data": image_data["data"],
+                                    }
+                                )
                             except ImportError:
-                                logger.warning("Could not import google.generativeai for image processing")
+                                logger.warning(
+                                    "Could not import google.generativeai for image processing"
+                                )
 
                 # Create content parts for multimodal input
                 if image_parts:
@@ -172,120 +192,181 @@ class GeminiBaseBot(BaseBot):
                         contents.append({"text": user_message})
 
                         # Generate content with multimodal input
-                        response = client.generate_content(contents)
+                        # For multimodal generation, we'll prepare for streaming
+                        # But handle it later depending on whether there are images in the response
+                        response_stream = client.generate_content_stream(contents)
                     except ImportError:
                         # Fall back to text-only if imports fail
-                        response = client.generate_content(f"{user_message} (Note: Your image was uploaded but cannot be processed)")
+                        response_stream = client.generate_content_stream(
+                            f"{user_message} (Note: Your image was uploaded but cannot be processed)"
+                        )
                 else:
-                    # Text-only generation
-                    response = client.generate_content(f"{user_message}")
+                    # Text-only generation with streaming
+                    response_stream = client.generate_content_stream(f"{user_message}")
 
-                # Check for images in response if response is an object with parts
-                has_images = False
-                if hasattr(response, "parts"):
-                    for part in response.parts:
-                        if hasattr(part, "inline_data") and part.inline_data:
-                            has_images = True
-                            try:
-                                # Extract image data
-                                image_data = part.inline_data.get("data")
-                                mime_type = part.inline_data.get("mime_type")
+                # For handling streaming response
+                if image_parts:
+                    # When we have image inputs, we need to use generate_content to handle images properly
+                    # We cannot rely only on streaming for multimodal content with image inputs
+                    response = client.generate_content(contents)
+                    has_images = False
 
-                                if image_data and mime_type:
-                                    # Check image size for performance reasons
-                                    max_image_size = 10 * 1024 * 1024  # 10MB limit
-                                    if len(image_data) > max_image_size:
-                                        logger.warning(f"Image too large ({len(image_data)} bytes), skipping")
-                                        yield PartialResponse(text="[Image too large to display]")
-                                        continue
+                    # For multimodal input, use the full response to handle any images in response
+                    if hasattr(response, "parts"):
+                        for part in response.parts:
+                            if hasattr(part, "inline_data") and part.inline_data:
+                                has_images = True
 
-                                    # Use Poe's official attachment upload mechanism
+                        # Process images in response
+                        if hasattr(response, "parts"):
+                            for part in response.parts:
+                                if hasattr(part, "inline_data") and part.inline_data:
+                                    has_images = True
                                     try:
-                                        # Determine file extension from mime type
-                                        extension = "jpg"
-                                        if mime_type == "image/png":
-                                            extension = "png"
-                                        elif mime_type == "image/gif":
-                                            extension = "gif"
-                                        elif mime_type == "image/webp":
-                                            extension = "webp"
+                                        # Extract image data
+                                        image_data = part.inline_data.get("data")
+                                        mime_type = part.inline_data.get("mime_type")
 
-                                        filename = f"gemini_image.{extension}"
+                                        if image_data and mime_type:
+                                            # Check image size for performance reasons
+                                            max_image_size = 10 * 1024 * 1024  # 10MB limit
+                                            if len(image_data) > max_image_size:
+                                                logger.warning(
+                                                    f"Image too large ({len(image_data)} bytes), skipping"
+                                                )
+                                                yield PartialResponse(
+                                                    text="[Image too large to display]"
+                                                )
+                                                continue
 
-                                        # Upload the attachment to Poe
-                                        # This requires the fastapi_poe client's post_message_attachment method
-                                        # which is available through self if using PoeBot as a base class
-                                        attachment_upload_response = await self.post_message_attachment(
-                                            message_id=query.message_id,
-                                            file_data=image_data,
-                                            filename=filename,
-                                            is_inline=True,
+                                            # Use Poe's official attachment upload mechanism
+                                            try:
+                                                # Determine file extension from mime type
+                                                extension = "jpg"
+                                                if mime_type == "image/png":
+                                                    extension = "png"
+                                                elif mime_type == "image/gif":
+                                                    extension = "gif"
+                                                elif mime_type == "image/webp":
+                                                    extension = "webp"
+
+                                                filename = f"gemini_image.{extension}"
+
+                                                # Upload the attachment to Poe
+                                                # This requires the fastapi_poe client's post_message_attachment method
+                                                # which is available through self if using PoeBot as a base class
+                                                attachment_upload_response = (
+                                                    await self.post_message_attachment(
+                                                        message_id=query.message_id,
+                                                        file_data=image_data,
+                                                        filename=filename,
+                                                        is_inline=True,
+                                                    )
+                                                )
+
+                                                if (
+                                                    not hasattr(
+                                                        attachment_upload_response, "inline_ref"
+                                                    )
+                                                    or not attachment_upload_response.inline_ref
+                                                ):
+                                                    logger.error(
+                                                        "Error uploading image: No inline_ref in response"
+                                                    )
+                                                    yield PartialResponse(
+                                                        text="[Error uploading image to Poe]"
+                                                    )
+                                                else:
+                                                    # Create markdown with the official Poe attachment reference
+                                                    output_md = f"![{filename}][{attachment_upload_response.inline_ref}]"
+                                                    yield PartialResponse(text=output_md)
+                                            except AttributeError as ae:
+                                                # Fallback if post_message_attachment is not available
+                                                logger.warning(
+                                                    f"post_message_attachment not available: {str(ae)}"
+                                                )
+                                                # Convert binary data to base64
+                                                import base64
+
+                                                b64_data = base64.b64encode(image_data).decode(
+                                                    "utf-8"
+                                                )
+
+                                                # Create markdown image format
+                                                image_markdown = f"![Gemini generated image](data:{mime_type};base64,{b64_data})"
+
+                                                # Yield the image as markdown
+                                                yield PartialResponse(text=image_markdown)
+                                            except Exception as e:
+                                                logger.error(f"Error uploading image: {str(e)}")
+                                                # Fallback to base64 method
+                                                import base64
+
+                                                # If image is too large for base64 encoding in markdown, resize it
+                                                if (
+                                                    len(image_data) > 1024 * 1024
+                                                ):  # 1MB is already large for base64
+                                                    try:
+                                                        # Try to resize the image if possible
+                                                        import io
+
+                                                        from PIL import Image
+
+                                                        img = Image.open(io.BytesIO(image_data))
+                                                        # Calculate new dimensions while maintaining aspect ratio
+                                                        max_size = 800
+                                                        ratio = min(
+                                                            max_size / img.width,
+                                                            max_size / img.height,
+                                                        )
+                                                        new_size = (
+                                                            int(img.width * ratio),
+                                                            int(img.height * ratio),
+                                                        )
+
+                                                        # Resize and save to bytes
+                                                        img = img.resize(
+                                                            new_size, Image.Resampling.LANCZOS
+                                                        )
+                                                        buffer = io.BytesIO()
+                                                        img.save(
+                                                            buffer, format=img.format or "JPEG"
+                                                        )
+                                                        image_data = buffer.getvalue()
+                                                        logger.info(
+                                                            f"Resized image from {len(image_data)} bytes"
+                                                        )
+                                                    except Exception as resize_err:
+                                                        logger.warning(
+                                                            f"Failed to resize image: {str(resize_err)}"
+                                                        )
+                                                        # Continue with original image
+
+                                                # Convert to base64
+                                                b64_data = base64.b64encode(image_data).decode(
+                                                    "utf-8"
+                                                )
+                                                image_markdown = f"![Gemini generated image](data:{mime_type};base64,{b64_data})"
+                                                yield PartialResponse(text=image_markdown)
+                                    except Exception as e:
+                                        logger.error(f"Error processing image response: {str(e)}")
+                                        yield PartialResponse(
+                                            text=f"[Error displaying image: {str(e)}]"
                                         )
 
-                                        if not hasattr(attachment_upload_response, "inline_ref") or not attachment_upload_response.inline_ref:
-                                            logger.error("Error uploading image: No inline_ref in response")
-                                            yield PartialResponse(text="[Error uploading image to Poe]")
-                                        else:
-                                            # Create markdown with the official Poe attachment reference
-                                            output_md = f"![{filename}][{attachment_upload_response.inline_ref}]"
-                                            yield PartialResponse(text=output_md)
-                                    except AttributeError as ae:
-                                        # Fallback if post_message_attachment is not available
-                                        logger.warning(f"post_message_attachment not available: {str(ae)}")
-                                        # Convert binary data to base64
-                                        import base64
-                                        b64_data = base64.b64encode(image_data).decode('utf-8')
-
-                                        # Create markdown image format
-                                        image_markdown = f"![Gemini generated image](data:{mime_type};base64,{b64_data})"
-
-                                        # Yield the image as markdown
-                                        yield PartialResponse(text=image_markdown)
-                                    except Exception as e:
-                                        logger.error(f"Error uploading image: {str(e)}")
-                                        # Fallback to base64 method
-                                        import base64
-
-                                        # If image is too large for base64 encoding in markdown, resize it
-                                        if len(image_data) > 1024 * 1024:  # 1MB is already large for base64
-                                            try:
-                                                # Try to resize the image if possible
-                                                import io
-
-                                                from PIL import Image
-
-                                                img = Image.open(io.BytesIO(image_data))
-                                                # Calculate new dimensions while maintaining aspect ratio
-                                                max_size = 800
-                                                ratio = min(max_size / img.width, max_size / img.height)
-                                                new_size = (int(img.width * ratio), int(img.height * ratio))
-
-                                                # Resize and save to bytes
-                                                img = img.resize(new_size, Image.Resampling.LANCZOS)
-                                                buffer = io.BytesIO()
-                                                img.save(buffer, format=img.format or "JPEG")
-                                                image_data = buffer.getvalue()
-                                                logger.info(f"Resized image from {len(image_data)} bytes")
-                                            except Exception as resize_err:
-                                                logger.warning(f"Failed to resize image: {str(resize_err)}")
-                                                # Continue with original image
-
-                                        # Convert to base64
-                                        b64_data = base64.b64encode(image_data).decode('utf-8')
-                                        image_markdown = f"![Gemini generated image](data:{mime_type};base64,{b64_data})"
-                                        yield PartialResponse(text=image_markdown)
-                            except Exception as e:
-                                logger.error(f"Error processing image response: {str(e)}")
-                                yield PartialResponse(text=f"[Error displaying image: {str(e)}]")
-
-                # Handle text response
-                # Simulate streaming by breaking up the response
-                full_text = response.text
-                # Break into ~10 character chunks
-                chunk_size = 10
-                for i in range(0, len(full_text), chunk_size):
-                    chunk = full_text[i : i + chunk_size]
-                    yield PartialResponse(text=chunk)
+                        # Handle text in the non-streaming response if images were present
+                        if hasattr(response, "text") and response.text:
+                            yield PartialResponse(text=response.text)
+                else:
+                    # For text-only responses, use real streaming
+                    try:
+                        # Stream text responses in real-time
+                        for chunk in response_stream:
+                            if hasattr(chunk, "text") and chunk.text:
+                                yield PartialResponse(text=chunk.text)
+                    except Exception as e:
+                        logger.error(f"Error streaming from Gemini API: {str(e)}")
+                        yield PartialResponse(text=f"Error streaming from Gemini: {str(e)}")
             except Exception as e:
                 logger.error(f"Error calling Gemini API: {str(e)}")
                 yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
@@ -330,7 +411,9 @@ class Gemini20FlashBot(GeminiBaseBot):
 
     model_name = "gemini-2.0-flash"
     bot_name = "Gemini20FlashBot"
-    bot_description = "Fast and efficient Gemini 2.0 Flash model, optimized for speed and next-gen features."
+    bot_description = (
+        "Fast and efficient Gemini 2.0 Flash model, optimized for speed and next-gen features."
+    )
 
 
 class Gemini20ProBot(GeminiBaseBot):
@@ -347,7 +430,9 @@ class Gemini25FlashBot(GeminiBaseBot):
 
     model_name = "gemini-2.5-flash-preview-04-17"
     bot_name = "Gemini25FlashBot"
-    bot_description = "Advanced Gemini 2.5 Flash Preview model for adaptive thinking and cost efficiency."
+    bot_description = (
+        "Advanced Gemini 2.5 Flash Preview model for adaptive thinking and cost efficiency."
+    )
 
 
 class Gemini25ProExpBot(GeminiBaseBot):
@@ -372,7 +457,9 @@ class Gemini20FlashThinkingBot(GeminiBaseBot):
 
     model_name = "gemini-2.0-flash-thinking-exp-01-21"
     bot_name = "Gemini20FlashThinkingBot"
-    bot_description = "Experimental Gemini 2.0 Flash Thinking model with enhanced reasoning capabilities."
+    bot_description = (
+        "Experimental Gemini 2.0 Flash Thinking model with enhanced reasoning capabilities."
+    )
 
 
 class Gemini20ProExpBot(GeminiBaseBot):
