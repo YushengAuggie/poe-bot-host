@@ -147,12 +147,12 @@ class Gemini25FlashBot(GeminiBaseBot):
     bot_description = "Advanced Gemini 2.5 Flash Preview model for adaptive thinking and cost efficiency."
 
 
-class Gemini25ProBot(GeminiBaseBot):
+class Gemini25ProExpBot(GeminiBaseBot):
     """Gemini 2.5 Pro Preview - premium model for complex reasoning."""
 
     model_name = "gemini-2.5-pro-preview-03-25"
-    bot_name = "Gemini25ProBot"
-    bot_description = "Premium Gemini 2.5 Pro Preview model for enhanced reasoning, multimodal understanding, and advanced coding."
+    bot_name = "Gemini25ProExpBot"
+    bot_description = "Premium Gemini 2.5 Pro Experimental model for enhanced reasoning, multimodal understanding, and advanced coding."
 
 
 # Experimental Models
