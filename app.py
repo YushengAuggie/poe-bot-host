@@ -9,7 +9,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from modal import App, Image, asgi_app
+from modal import App, Image, Secret, asgi_app
 
 from utils.bot_factory import BotFactory
 from utils.config import settings

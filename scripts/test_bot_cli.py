@@ -13,16 +13,16 @@ in the Poe Bots Framework. It can:
 Usage:
     # Test the first available bot
     python scripts/test_bot_cli.py
-    
+
     # Test a specific bot
     python scripts/test_bot_cli.py --bot EchoBot
-    
+
     # Test with a custom message
     python scripts/test_bot_cli.py --bot ReverseBot --message "Reverse this text"
-    
+
     # Check API health
     python scripts/test_bot_cli.py --health
-    
+
     # Show API endpoints
     python scripts/test_bot_cli.py --schema
 """
@@ -34,11 +34,10 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
+import requests
+
 # Add the project root to path so utils module can be found
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Third-party imports
-import requests
 
 # Local imports
 from utils.config import settings
@@ -57,6 +56,7 @@ def get_available_bots(base_url: str) -> Dict[str, str]:
         Dictionary of bot names and descriptions
     """
     try:
+        logger.debug(f"Requesting bot list from: {base_url}/bots")
         response = requests.get(f"{base_url}/bots")
         if response.status_code == 200:
             return response.json()
@@ -78,6 +78,7 @@ def check_health(base_url: str) -> Dict[str, Any]:
         Health check response
     """
     try:
+        logger.debug(f"Checking health at: {base_url}/health")
         response = requests.get(f"{base_url}/health")
         if response.status_code == 200:
             return response.json()
@@ -189,6 +190,28 @@ def print_banner():
     print("======================================================\n")
 
 
+def check_key_configuration(base_url: str) -> Dict[str, Any]:
+    """Check API key configuration in the deployment.
+
+    Args:
+        base_url: Base URL of the API
+
+    Returns:
+        API key configuration details
+    """
+    try:
+        logger.debug(f"Checking key configuration at: {base_url}/keys_configured")
+        response = requests.get(f"{base_url}/keys_configured")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.warning(f"Key configuration check failed: {response.status_code}")
+            return {"status": "error", "code": response.status_code}
+    except Exception as e:
+        logger.error(f"Error checking key configuration: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -204,17 +227,28 @@ def main():
     parser.add_argument("--schema", action="store_true", help="Show OpenAPI schema")
     parser.add_argument("--health", action="store_true", help="Show health check")
     parser.add_argument("--all", action="store_true", help="Test all available bots")
+    parser.add_argument("--keys", action="store_true", help="Check API key configuration")
     parser.add_argument(
         "--format", choices=["text", "json"], default="text", help="Output format (text or json)"
     )
 
     args = parser.parse_args()
 
-    # Use environment variables if specified
-    host = os.environ.get("POE_API_HOST", args.host)
-    port = int(os.environ.get("POE_API_PORT", args.port))
+    # Override environment variables with command line arguments if provided
+    # Note: args.host should take precedence over environment variables
+    host = args.host if args.host else os.environ.get("POE_API_HOST", "0.0.0.0")
+    port = int(args.port if args.port else os.environ.get("POE_API_PORT", "8000"))
 
-    base_url = f"http://{host}:{port}"
+    # Check if this is a full URL (likely a Modal deployment)
+    if host.startswith("http://") or host.startswith("https://"):
+        base_url = host
+    elif "modal.run" in host:  # Modal deployment
+        base_url = f"https://{host}"
+    else:
+        base_url = f"http://{host}:{port}"
+
+    # Debug output
+    print(f"DEBUG: Using host={host}, port={port}, base_url={base_url}")
 
     # Print banner for non-JSON output
     if args.format == "text":
@@ -229,6 +263,15 @@ def main():
         else:
             print("\nHealth Check:")
             print(json.dumps(health, indent=2))
+
+    # Check API key configuration if requested
+    if args.keys:
+        keys_config = check_key_configuration(base_url)
+        if args.format == "json":
+            print(json.dumps({"keys_config": keys_config}, indent=2))
+        else:
+            print("\nAPI Key Configuration:")
+            print(json.dumps(keys_config, indent=2))
 
     # Get list of available bots
     bots = get_available_bots(base_url)
