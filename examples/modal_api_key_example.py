@@ -31,6 +31,12 @@ from utils.api_keys import (
 # Create a Modal app for the example
 app = create_modal_app("api-key-example", ["openai", "google-generativeai"])
 
+# Create image with explicitly added local Python sources
+image = modal.Image.debian_slim().pip_install(["openai", "google-generativeai"]).add_local_python_source("utils")
+
+# Update app to use the image
+app.image = image
+
 
 @app.function(secrets=get_function_secrets(["openai", "google"]))
 def check_api_keys():

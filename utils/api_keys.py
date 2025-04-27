@@ -25,8 +25,11 @@ def get_openai_api_key() -> str:
     try:
         import modal
         is_modal_env = modal.is_local() is False
-        if is_modal_env and "OPENAI_API_KEY" in os.environ:
-            return os.environ["OPENAI_API_KEY"]
+        if is_modal_env:
+            # Try to find the key from different potential sources
+            for env_var in ["OPENAI_API_KEY", "value"]:
+                if env_var in os.environ:
+                    return os.environ[env_var]
     except (ImportError, AttributeError):
         pass
 
@@ -53,8 +56,11 @@ def get_google_api_key() -> str:
     try:
         import modal
         is_modal_env = modal.is_local() is False
-        if is_modal_env and "GOOGLE_API_KEY" in os.environ:
-            return os.environ["GOOGLE_API_KEY"]
+        if is_modal_env:
+            # Try to find the key from different potential sources
+            for env_var in ["GOOGLE_API_KEY", "value"]:
+                if env_var in os.environ:
+                    return os.environ[env_var]
     except (ImportError, AttributeError):
         pass
 
