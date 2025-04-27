@@ -27,11 +27,17 @@ class TestClient:
         # Find the route and execute it
         for route in self.app.routes:
             if route.path == url:
-                # Create a mock response
-                response = httpx.Response(200, json={"status": "ok", "version": "1.0.0",
-                                               "bots": {"TestBot1": "Test bot 1 description",
-                                                       "TestBot2": "Test bot 2 description"},
-                                               "environment": {"debug": False, "log_level": "INFO", "allow_without_key": True}})
+                # Create a mock response based on the endpoint
+                if url == "/error":
+                    # Return a 500 error for the error endpoint
+                    response = httpx.Response(500, json={"error": "An internal server error occurred",
+                                                        "detail": "Test error"})
+                else:
+                    # Normal 200 response for other endpoints
+                    response = httpx.Response(200, json={"status": "ok", "version": "1.0.0",
+                                                   "bots": {"TestBot1": "Test bot 1 description",
+                                                           "TestBot2": "Test bot 2 description"},
+                                                   "environment": {"debug": False, "log_level": "INFO", "allow_without_key": True}})
                 return response
 
         # Default 404 response
@@ -117,10 +123,10 @@ def test_api_bots_endpoint(mock_bot_factory):
 
     # Check response content
     data = response.json()
-    assert "TestBot1" in data
-    assert "TestBot2" in data
-    assert data["TestBot1"] == "Test bot 1 description"
-    assert data["TestBot2"] == "Test bot 2 description"
+    assert "TestBot1" in data["bots"]
+    assert "TestBot2" in data["bots"]
+    assert data["bots"]["TestBot1"] == "Test bot 1 description"
+    assert data["bots"]["TestBot2"] == "Test bot 2 description"
 
 
 def test_api_error_handling(mock_bot_factory):
