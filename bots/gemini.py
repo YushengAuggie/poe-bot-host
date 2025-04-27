@@ -442,6 +442,25 @@ class Gemini25ProExpBot(GeminiBaseBot):
     bot_name = "Gemini25ProExpBot"
     bot_description = "Premium Gemini 2.5 Pro Experimental model for enhanced reasoning, multimodal understanding, and advanced coding."
 
+    async def get_settings(self, settings_request):
+        """Get bot settings with explicit attachment settings.
+
+        Ensures attachments are properly enabled for this model.
+
+        Args:
+            settings_request: The settings request
+
+        Returns:
+            Settings response with attachments explicitly enabled
+        """
+        settings = await super().get_settings(settings_request)
+
+        # Explicitly set attachment settings
+        settings.allow_attachments = True
+        settings.expand_text_attachments = True
+
+        return settings
+
 
 # Experimental Models
 class Gemini20FlashExpBot(GeminiBaseBot):

@@ -273,3 +273,24 @@ class BaseBot(PoeBot):
 
         # Message is valid
         return True, None
+
+    async def get_settings(self, settings_request):
+        """Get bot settings.
+
+        Default implementation allows attachments based on bot capabilities.
+
+        Args:
+            settings_request: The settings request
+
+        Returns:
+            Settings response with appropriate settings
+        """
+        from fastapi_poe.types import SettingsResponse
+
+        # Default settings
+        settings = SettingsResponse(
+            allow_attachments=True,  # Enable file upload by default for all bots
+            expand_text_attachments=True  # Parse text file contents
+        )
+
+        return settings
