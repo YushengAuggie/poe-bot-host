@@ -19,7 +19,7 @@ class GeminiClientStub:
     def __init__(self, model_name: Optional[str] = None, api_key: Optional[str] = None):
         self.model_name = model_name
 
-    def generate_content(self, contents: Any):
+    def generate_content(self, contents: Any, stream: bool = False):
         # Return an object with text property for compatibility
         model_name = self.model_name  # Store locally for use in inner class
 
@@ -28,19 +28,22 @@ class GeminiClientStub:
                 self.text = f"Gemini API ({model_name}) is not available. Please install the google-generativeai package."
                 self.parts = []  # Add parts property for multimodal support
 
+            def __iter__(self):
+                # Make this iterable for streaming support
+                yield self
+
+            def __aiter__(self):
+                # Make this async iterable for async streaming support
+                return self
+
+            async def __anext__(self):
+                # This will yield one item then stop iteration
+                if not hasattr(self, '_yielded'):
+                    self._yielded = True
+                    return self
+                raise StopAsyncIteration
+
         return StubResponse()
-
-    def generate_content_stream(self, contents: Any):
-        # Return an iterable that yields one chunk for the stub message
-        model_name = self.model_name  # Store locally for use in inner class
-
-        class StubStreamResponse:
-            def __init__(self):
-                self.text = f"Gemini API ({model_name}) is not available. Please install the google-generativeai package."
-                self.parts = []  # Add parts property for multimodal support
-
-        # Return a list with a single item, which is compatible with the 'for chunk in response:' pattern
-        return [StubStreamResponse()]
 
 
 # Initialize client globally
@@ -220,9 +223,15 @@ class GeminiBaseBot(BaseBot):
         """
         try:
             # Stream text responses in real-time
-            for chunk in response_stream:
+            # The response_stream is an iterable from client.generate_content(contents, stream=True)
+            async for chunk in response_stream:
                 if hasattr(chunk, "text") and chunk.text:
                     yield PartialResponse(text=chunk.text)
+                elif hasattr(chunk, "parts") and chunk.parts:
+                    # Some versions of the API might return text in parts
+                    for part in chunk.parts:
+                        if hasattr(part, "text") and part.text:
+                            yield PartialResponse(text=part.text)
         except Exception as e:
             logger.error(f"Error streaming from Gemini API: {str(e)}")
             yield PartialResponse(text=f"Error streaming from Gemini: {str(e)}")
@@ -418,27 +427,32 @@ class GeminiBaseBot(BaseBot):
         # Prepare content (text-only or multimodal)
         contents = self._prepare_content(user_message, image_parts)
 
-        # Generate streaming content
-        try:
-            # Import inside try block to avoid module-level import errors
-            import google.generativeai as genai
-            response_stream = client.generate_content_stream(contents)
-        except ImportError:
-            # Fall back to text-only if imports fail
-            logger.warning("Failed to import google.generativeai for streaming")
-            response_stream = client.generate_content_stream(
-                f"{user_message} (Note: Your image was uploaded but cannot be processed)"
-            )
+        # We handle streaming differently for multimodal vs text-only content
+        # so we'll make the API call within the specific handler blocks
 
         # Process the response appropriately
         if image_parts:
             # For multimodal content (with images), we need special processing
+            # We use non-streaming mode for multimodal to properly handle image outputs
             async for partial_response in self._process_multimodal_content(client, contents, query):
                 yield partial_response
         else:
-            # For text-only content, we can use streaming directly
-            async for partial_response in self._process_streaming_response(response_stream):
-                yield partial_response
+            try:
+                # Import inside try block to avoid module-level import errors
+                import google.generativeai as genai
+
+                # For text-only content, use streaming directly
+                # Note: We use the generate_content method with stream=True
+                response_stream = client.generate_content(contents, stream=True)
+                async for partial_response in self._process_streaming_response(response_stream):
+                    yield partial_response
+            except ImportError:
+                # Fall back if imports fail
+                logger.warning("Failed to import google.generativeai for streaming")
+                response = client.generate_content(
+                    f"{user_message} (Note: Your image was uploaded but cannot be processed)"
+                )
+                yield PartialResponse(text=response.text)
 
     async def get_response(
         self, query: QueryRequest

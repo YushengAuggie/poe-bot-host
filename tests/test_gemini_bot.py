@@ -157,15 +157,40 @@ async def test_text_only_streaming_response(gemini_bot, sample_query_with_text):
         MagicMock(text=" is"),
         MagicMock(text=" streaming")
     ]
-    mock_client.generate_content_stream.return_value = mock_chunks
+    # Setup the client to use the proper streaming method (stream=True parameter)
+    mock_chunks_copy = mock_chunks.copy()
 
-    with patch('bots.gemini.get_client', return_value=mock_client):
+    class MockAsyncIterator:
+        def __init__(self, chunks):
+            self.chunks = chunks
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.chunks:
+                raise StopAsyncIteration
+            return self.chunks.pop(0)
+
+    mock_stream_response = MockAsyncIterator(mock_chunks_copy)
+    mock_client.generate_content.return_value = mock_stream_response
+
+    # Allow import inside the function to work by creating a fake module
+    sys_modules_patcher = patch.dict('sys.modules', {
+        'google': MagicMock(),
+        'google.generativeai': MagicMock(),
+    })
+
+    with patch('bots.gemini.get_client', return_value=mock_client), sys_modules_patcher:
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
 
-        # Verify streaming API was called
-        assert mock_client.generate_content_stream.called, "Streaming API should be called"
+        # Verify streaming API was called correctly - with stream=True
+        mock_client.generate_content.assert_called_once()
+        call_args = mock_client.generate_content.call_args[1]
+        assert 'stream' in call_args, "stream parameter should be provided"
+        assert call_args['stream'] is True, "stream parameter should be True"
 
         # Verify all chunks are returned as separate responses
         assert len(responses) == len(mock_chunks), "Each chunk should be returned as a separate response"
@@ -260,9 +285,7 @@ async def test_multimodal_input_handling(gemini_bot, sample_query_with_image):
     # Mock the client generation to avoid actual API calls
     mock_client = MagicMock()
 
-    # Create a mock stream response that yields "I see an image"
-    mock_stream_response = [MagicMock(text="I see an image")]
-    mock_client.generate_content_stream.return_value = mock_stream_response
+    # For multimodal content, we use non-streaming mode
     mock_client.generate_content.return_value = MagicMock(text="I see an image")
 
     with patch('bots.gemini.get_client', return_value=mock_client):
@@ -271,8 +294,8 @@ async def test_multimodal_input_handling(gemini_bot, sample_query_with_image):
             responses.append(response)
 
         # Verify client was called with multimodal content
-        assert mock_client.generate_content_stream.called, "Streaming API should be called"
-        args, kwargs = mock_client.generate_content_stream.call_args
+        assert mock_client.generate_content.called, "API should be called"
+        args, kwargs = mock_client.generate_content.call_args
 
         if len(args) > 0:
             # Check if multimodal content is being sent correctly
@@ -647,6 +670,159 @@ async def test_large_image_handling(gemini_bot, sample_query_with_text):
 
 
 @pytest.mark.asyncio
+async def test_process_streaming_helper_method(gemini_base_bot):
+    """Test the _process_streaming_response helper method directly."""
+    # Create mock stream with multiple chunks to test the helper function
+    mock_chunks = [
+        MagicMock(text="Hello"),
+        MagicMock(text=" world"),
+        # Test a chunk with parts instead of direct text
+        MagicMock(text=None, parts=[MagicMock(text=" with"), MagicMock(text=" parts")])
+    ]
+
+    # Create a proper async iterable stream
+    class MockStream:
+        def __init__(self, chunks):
+            self.chunks = chunks
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.chunks:
+                raise StopAsyncIteration
+            return self.chunks.pop(0)
+
+    # Call the helper method directly
+    mock_stream = MockStream(mock_chunks.copy())  # Use copy to keep original chunks
+    responses = []
+    async for response in gemini_base_bot._process_streaming_response(mock_stream):
+        responses.append(response)
+
+    # Verify the method handled all chunk types correctly
+    assert len(responses) == 4  # 2 direct text chunks + 2 from parts
+    full_text = "".join([r.text for r in responses if hasattr(r, 'text')])
+    assert full_text == "Hello world with parts"
+
+    # Test error handling in the streaming method
+    error_stream = MagicMock()
+    error_stream.__aiter__ = MagicMock(side_effect=Exception("Test streaming error"))
+
+    error_responses = []
+    async for response in gemini_base_bot._process_streaming_response(error_stream):
+        error_responses.append(response)
+
+    assert len(error_responses) == 1
+    assert "Error streaming from Gemini" in error_responses[0].text
+
+
+@pytest.mark.asyncio
+async def test_process_user_query_helper(gemini_base_bot, sample_query_with_text, sample_query_with_image):
+    """Test the _process_user_query helper method to ensure it handles different content types correctly."""
+    # Mock client
+    mock_client = MagicMock()
+
+    # Test 1: Text-only content should use streaming
+    class MockAsyncIterator:
+        def __init__(self, text):
+            self.yielded = False
+            self.text = text
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self.yielded:
+                raise StopAsyncIteration
+            self.yielded = True
+            mock_chunk = MagicMock()
+            mock_chunk.text = self.text
+            return mock_chunk
+
+    mock_stream = MockAsyncIterator("Streaming text response")
+    mock_client.generate_content.return_value = mock_stream
+
+    # Allow import inside the function to work by creating a fake module
+    sys_modules_patcher = patch.dict('sys.modules', {
+        'google': MagicMock(),
+        'google.generativeai': MagicMock(),
+    })
+
+    # For text-only queries
+    responses = []
+    with sys_modules_patcher:
+        async for response in gemini_base_bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+            responses.append(response)
+
+    # Verify streaming was used
+    mock_client.generate_content.assert_called_once()
+    assert mock_client.generate_content.call_args[1].get('stream') is True
+    assert len(responses) == 1
+    assert "Streaming text response" in responses[0].text
+
+    # Test 2: Image content should use non-streaming
+    mock_client.reset_mock()
+
+    # Mock image processing
+    with patch.object(
+        gemini_base_bot,
+        '_extract_attachments',
+        return_value=["mock_image"]
+    ), patch.object(
+        gemini_base_bot,
+        '_prepare_image_parts',
+        return_value=[{"mime_type": "image/jpeg", "data": b"fake-image"}]
+    ), patch.object(
+        gemini_base_bot,
+        '_process_multimodal_content',
+        new=lambda *args, **kwargs: async_generator(PartialResponse(text="Image response"))
+    ):
+        # For image queries
+        responses = []
+        async for response in gemini_base_bot._process_user_query(mock_client, "What's in this image?", sample_query_with_image):
+            responses.append(response)
+
+        # For multimodal, should not use streaming
+        assert len(responses) == 1
+        assert "Image response" in responses[0].text
+
+
+# Helper for async generator
+async def async_generator(value):
+    yield value
+
+
+@pytest.mark.asyncio
+async def test_client_stub_compatibility(gemini_base_bot):
+    """Test that the GeminiClientStub works correctly with the new streaming API."""
+    # Import the stub class
+    from bots.gemini import GeminiClientStub
+
+    # Create an instance
+    stub = GeminiClientStub(model_name="test-model")
+
+    # Test non-streaming mode
+    response = stub.generate_content("Hello")
+    assert "not available" in response.text
+
+    # Test streaming mode
+    stream_response = stub.generate_content("Hello", stream=True)
+
+    # Should be iterable for normal for loop
+    chunks = list(stream_response)
+    assert len(chunks) == 1
+    assert "not available" in chunks[0].text
+
+    # Should be async iterable
+    chunks = []
+    async for chunk in stream_response:
+        chunks.append(chunk)
+
+    assert len(chunks) == 1
+    assert "not available" in chunks[0].text
+
+
+@pytest.mark.asyncio
 async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
     """Test image resizing fallback for large images when using base64 encoding."""
 
@@ -742,18 +918,43 @@ async def test_process_user_query(gemini_bot, sample_query_with_text, sample_que
     # Mock client
     mock_client = MagicMock()
 
-    # Test text-only query
-    mock_client.generate_content_stream.return_value = [MagicMock(text="Hello from Gemini")]
+    # Test text-only query with streaming
+    class MockAsyncIterator:
+        def __init__(self, text):
+            self.yielded = False
+            self.text = text
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self.yielded:
+                raise StopAsyncIteration
+            self.yielded = True
+            mock_chunk = MagicMock()
+            mock_chunk.text = self.text
+            return mock_chunk
+
+    mock_stream = MockAsyncIterator("Hello from Gemini")
+    mock_client.generate_content.return_value = mock_stream
+
+    # Allow import inside the function to work by creating a fake module
+    sys_modules_patcher = patch.dict('sys.modules', {
+        'google': MagicMock(),
+        'google.generativeai': MagicMock(),
+    })
 
     # Process text-only query
     responses = []
-    async for response in gemini_bot._process_user_query(mock_client, "Hello", sample_query_with_text):
-        responses.append(response)
+    with sys_modules_patcher:
+        async for response in gemini_bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+            responses.append(response)
 
     # Verify text-only processing
     assert len(responses) == 1
     assert responses[0].text == "Hello from Gemini"
-    assert mock_client.generate_content_stream.called
+    assert mock_client.generate_content.called
+    assert mock_client.generate_content.call_args[1].get('stream') is True
 
     # Reset the mock
     mock_client.reset_mock()
