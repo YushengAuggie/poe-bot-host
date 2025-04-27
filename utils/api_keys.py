@@ -22,8 +22,13 @@ def get_openai_api_key() -> str:
         return key
 
     # If not in local env, check if we're in a Modal environment with secrets
-    if "OPENAI_API_KEY" in os.environ:
-        return os.environ["OPENAI_API_KEY"]
+    try:
+        import modal
+        is_modal_env = modal.is_local() is False
+        if is_modal_env and "OPENAI_API_KEY" in os.environ:
+            return os.environ["OPENAI_API_KEY"]
+    except (ImportError, AttributeError):
+        pass
 
     raise ValueError("OPENAI_API_KEY not found in environment or Modal secrets")
 
@@ -45,8 +50,13 @@ def get_google_api_key() -> str:
         return key
 
     # If not in local env, check if we're in a Modal environment with secrets
-    if "GOOGLE_API_KEY" in os.environ:
-        return os.environ["GOOGLE_API_KEY"]
+    try:
+        import modal
+        is_modal_env = modal.is_local() is False
+        if is_modal_env and "GOOGLE_API_KEY" in os.environ:
+            return os.environ["GOOGLE_API_KEY"]
+    except (ImportError, AttributeError):
+        pass
 
     raise ValueError("GOOGLE_API_KEY not found in environment or Modal secrets")
 
@@ -88,8 +98,8 @@ def get_modal_secrets() -> Dict[str, str]:
         Dict[str, str]: Map of service name to Modal secret name
     """
     return {
-        "openai": "openai-secret",
-        "google": "googlecloud-secret"
+        "openai": "OPENAI_API_KEY",
+        "google": "GOOGLE_API_KEY",
     }
 
 
@@ -114,11 +124,30 @@ def get_function_secrets(services: "list[str]") -> "list[modal.Secret]":
     Get the Modal secrets for the specified services.
 
     Args:
-        services: List of service names
+        services: List of service names (e.g., "openai", "google")
 
     Returns:
         list: List of Modal secrets
     """
     secrets_map = get_modal_secrets()
-    return [modal.Secret.from_name(secrets_map[service])
-            for service in services if service in secrets_map]
+    secrets = []
+
+    # Add KEY secret which includes all API keys
+    try:
+        key_secret = modal.Secret.from_name("KEY")
+        secrets.append(key_secret)
+    except ValueError:
+        # Continue if KEY secret not found
+        pass
+
+    # Also add service-specific secrets for backward compatibility
+    for service in services:
+        if service in secrets_map:
+            try:
+                service_secret = modal.Secret.from_name(secrets_map[service])
+                secrets.append(service_secret)
+            except ValueError:
+                # Continue if this specific secret not found
+                pass
+
+    return secrets
