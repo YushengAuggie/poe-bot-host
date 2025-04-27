@@ -84,13 +84,22 @@ app = App(settings.MODAL_APP_NAME)
 image = (
     Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
-    .copy_local_dir("utils", "/root/utils")
-    .copy_local_dir("bots", "/root/bots")
-    .copy_local_dir("tests", "/root/tests")
+    .pip_install("google-generativeai>=0.3.2")  # Ensure Gemini package is installed
+    .add_local_dir("utils", "/root/utils")
+    .add_local_dir("bots", "/root/bots")
+    .add_local_dir("tests", "/root/tests")
+    .add_local_python_source("utils")  # Add local Python modules explicitly
 )
 
 
-@app.function(image=image)
+@app.function(
+    image=image,
+    secrets=[
+        # Include all required API key secrets
+        Secret.from_name("OPENAI_API_KEY"),
+        Secret.from_name("GOOGLE_API_KEY")
+    ]
+)
 @asgi_app()
 def fastapi_app():
     """Create and return the FastAPI app for Modal deployment."""

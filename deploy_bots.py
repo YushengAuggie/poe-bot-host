@@ -1,0 +1,146 @@
+"""
+Deployment script for Poe bots using Modal.
+
+This script creates and deploys the FastAPI application to Modal with proper configuration
+of API secrets and dependencies for both OpenAI and Gemini bots.
+"""
+
+import logging
+import os
+import sys
+import modal
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("deploy_bots")
+logger.setLevel(logging.DEBUG)
+
+# Add the current directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from utils.config import settings
+except ImportError:
+    logger.error("Cannot import settings. Make sure utils/config.py exists.")
+    sys.exit(1)
+
+# Create a Modal app
+app = modal.App(settings.MODAL_APP_NAME)
+
+# Create a custom image with required dependencies
+logger.info("Creating Modal image with dependencies")
+image = (
+    modal.Image.debian_slim()
+    .pip_install_from_requirements("requirements.txt")
+    .pip_install("google-generativeai>=0.3.2")  # Ensure Gemini package is installed
+    .add_local_dir("utils", "/root/utils")
+    .add_local_dir("bots", "/root/bots")
+    .add_local_dir("tests", "/root/tests")
+    .add_local_python_source("utils")  # Add local Python modules explicitly
+)
+
+@app.function(
+    image=image,
+    secrets=[
+        # Include all required API key secrets
+        modal.Secret.from_name("OPENAI_API_KEY"),
+        modal.Secret.from_name("GOOGLE_API_KEY")
+    ]
+)
+@modal.asgi_app()
+def fastapi_app():
+    """Create and return the FastAPI app for Modal deployment."""
+    logger.info("Starting FastAPI app for Modal deployment")
+    
+    # Import inside function to ensure Modal image context
+    from utils.bot_factory import BotFactory
+    
+    # Create the FastAPI app
+    logger.info("Loading bots from 'bots' module")
+    bot_classes = BotFactory.load_bots_from_module("bots")
+    
+    if not bot_classes:
+        logger.warning("No bots found in 'bots' module!")
+    
+    # Create a FastAPI app with all the bots
+    from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
+    api = BotFactory.create_app(bot_classes, allow_without_key=settings.ALLOW_WITHOUT_KEY)
+    
+    # Add custom error handling
+    @api.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.exception("Unhandled exception occurred:")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "An internal server error occurred", "detail": str(exc)},
+        )
+    
+    # Add a diagnostic endpoint
+    @api.get("/keys_configured")
+    async def check_api_keys():
+        """Check if API keys are configured."""
+        from utils.api_keys import get_api_key
+        
+        result = {}
+        
+        # Check OpenAI key
+        try:
+            openai_key = get_api_key("OPENAI_API_KEY")
+            result["openai"] = {
+                "configured": bool(openai_key),
+                "length": len(openai_key) if openai_key else 0,
+                "starts_with": openai_key[:3] + "..." if openai_key and len(openai_key) > 5 else None
+            }
+        except Exception as e:
+            result["openai"] = {"error": str(e)}
+        
+        # Check Google key
+        try:
+            google_key = get_api_key("GOOGLE_API_KEY")
+            result["google"] = {
+                "configured": bool(google_key),
+                "length": len(google_key) if google_key else 0,
+                "starts_with": google_key[:3] + "..." if google_key and len(google_key) > 5 else None
+            }
+        except Exception as e:
+            result["google"] = {"error": str(e)}
+            
+        # Check environment variables (omitting sensitive values)
+        env_vars = []
+        for key in sorted(os.environ.keys()):
+            # Only include non-sensitive keys
+            if 'api' not in key.lower() and 'key' not in key.lower() and 'secret' not in key.lower():
+                env_vars.append(key)
+        
+        result["environment"] = {
+            "available_vars": env_vars,
+            "api_keys": [k for k in os.environ.keys() if "api_key" in k.lower() or "key" in k.lower()]
+        }
+        
+        return result
+    
+    logger.info("FastAPI app created successfully")
+    return api
+
+if __name__ == "__main__":
+    print("Deploying Poe bots to Modal...")
+    print("To deploy, run: modal deploy deploy_bots.py")
+    print("To test locally, run: modal serve deploy_bots.py")
+    
+    # In Modal version 0.74.29 and later, use 'modal deploy' from command line
+    # If running locally, you can test the app
+    if modal.is_local():
+        print("\nRunning in local mode for testing...")
+        with app.run():
+            print("API is running locally. Press Ctrl+C to stop.")
+            
+            # Keep the script running
+            try:
+                import time
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("Stopping local server...")
+    else:
+        print("Running in Modal cloud deployment...")
