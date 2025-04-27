@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi_poe.types import Attachment, PartialResponse, ProtocolMessage, QueryRequest
 
-from bots.gemini import GeminiBaseBot, GeminiBot
+from bots.gemini import GeminiBaseBot, GeminiBot, get_client
 from utils.base_bot import BotErrorNoRetry
 
 
@@ -705,3 +705,122 @@ async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
                 has_base64_image = True
 
         assert has_base64_image, "Response should include a base64 encoded image after resizing"
+
+
+@pytest.mark.asyncio
+async def test_prepare_content(gemini_base_bot):
+    """Test the _prepare_content helper method."""
+    # Test with text only
+    text_only_content = gemini_base_bot._prepare_content("Hello, Gemini!", [])
+    assert isinstance(text_only_content, list)
+    assert len(text_only_content) == 1
+    assert text_only_content[0]["text"] == "Hello, Gemini!"
+
+    # Test with images
+    image_parts = [
+        {"mime_type": "image/jpeg", "data": b"fake-jpeg-data"},
+        {"mime_type": "image/png", "data": b"fake-png-data"}
+    ]
+
+    multimodal_content = gemini_base_bot._prepare_content("Describe these images", image_parts)
+    assert isinstance(multimodal_content, list)
+    assert len(multimodal_content) == 3  # 2 images + 1 text prompt
+
+    # First two items should be images
+    assert "inline_data" in multimodal_content[0]
+    assert "inline_data" in multimodal_content[1]
+    assert multimodal_content[0]["inline_data"] == image_parts[0]
+    assert multimodal_content[1]["inline_data"] == image_parts[1]
+
+    # Last item should be the text prompt
+    assert multimodal_content[2]["text"] == "Describe these images"
+
+
+@pytest.mark.asyncio
+async def test_process_user_query(gemini_bot, sample_query_with_text, sample_query_with_image):
+    """Test the _process_user_query helper method."""
+    # Mock client
+    mock_client = MagicMock()
+
+    # Test text-only query
+    mock_client.generate_content_stream.return_value = [MagicMock(text="Hello from Gemini")]
+
+    # Process text-only query
+    responses = []
+    async for response in gemini_bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+        responses.append(response)
+
+    # Verify text-only processing
+    assert len(responses) == 1
+    assert responses[0].text == "Hello from Gemini"
+    assert mock_client.generate_content_stream.called
+
+    # Reset the mock
+    mock_client.reset_mock()
+
+    # Test multimodal query with image
+    # Mock for image handling
+    mock_response = MagicMock(text="I see an image")
+    mock_client.generate_content.return_value = mock_response
+
+    # Mock the attachments processing to return an image part
+    with patch.object(
+        gemini_bot,
+        '_prepare_image_parts',
+        return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}]
+    ):
+        responses = []
+        async for response in gemini_bot._process_user_query(mock_client, "What's in this image?", sample_query_with_image):
+            responses.append(response)
+
+        # Verify multimodal processing
+        assert len(responses) == 1
+        assert responses[0].text == "I see an image"
+        # For multimodal content, it should call generate_content instead of streaming
+        assert mock_client.generate_content.called
+
+
+def test_get_client_with_valid_key():
+    """Test the get_client function with a valid API key."""
+    with patch('bots.gemini.get_api_key', return_value="fake-api-key"), \
+         patch('google.generativeai.GenerativeModel') as mock_model, \
+         patch('google.generativeai.configure') as mock_configure:
+
+        client = get_client("gemini-2.0-pro")
+
+        # Verify API key was configured
+        mock_configure.assert_called_once_with(api_key="fake-api-key")
+
+        # Verify model was created with correct name
+        mock_model.assert_called_once_with(model_name="gemini-2.0-pro")
+
+        # Should return a client
+        assert client is not None
+
+
+def test_get_client_with_missing_key():
+    """Test the get_client function with a missing API key."""
+    with patch('bots.gemini.get_api_key', return_value=None):
+        client = get_client("gemini-2.0-pro")
+        assert client is None
+
+
+def test_get_client_with_import_error():
+    """Test the get_client function with an import error."""
+    # Create a mock ImportError that will be raised when attempting to import google.generativeai
+    mock_import_error = ImportError("No module named 'google.generativeai'")
+
+    # Use patch.dict to modify sys.modules to trigger ImportError for google.generativeai
+    with patch.dict('sys.modules', {'google.generativeai': None, 'google': None}), \
+         patch('bots.gemini.get_api_key', return_value="fake-api-key"), \
+         patch('bots.gemini.GeminiClientStub') as mock_stub:
+
+        # Set model name for verification
+        mock_stub.return_value.model_name = "gemini-2.0-pro"
+
+        client = get_client("gemini-2.0-pro")
+
+        # Should return a stub client
+        assert client is not None
+        assert mock_stub.called
+        mock_stub.assert_called_once_with(model_name="gemini-2.0-pro")
