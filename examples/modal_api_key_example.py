@@ -34,7 +34,13 @@ app = modal.App("api-key-example")
 # Create a custom image with all required dependencies
 image = (
     modal.Image.debian_slim()
-    .pip_install(["openai", "google-generativeai", "fastapi-poe>=0.0.21", "pydantic>=2.0.0"])
+    .pip_install([
+        "openai",
+        "google-generativeai",
+        "fastapi-poe>=0.0.21",
+        "pydantic>=2.0.0",
+        "python-dotenv>=1.0.0"
+    ])
     .add_local_python_source("utils")
 )
 
