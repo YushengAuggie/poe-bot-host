@@ -2,131 +2,135 @@
 
 [English](README.md) | 简体中文
 
-一个用于 Poe 平台的多机器人框架。
-
-## 概述
-
-Poe 机器人框架是一个全面的平台，用于创建、测试、部署和管理 Poe 平台上的多个机器人。该框架通过以下方式简化了机器人开发过程：
-
-- 用于托管多个机器人的统一 API
-- 具有错误处理功能的强大基础机器人架构
-- 自动机器人发现和注册
-- 全面的测试工具
-- 与 Modal 集成的简化部署流程
-- 标准化的日志记录和错误报告
-- 多个示例机器人与不同功能:
-  - 基础机器人（Echo, Reverse, Uppercase）
-  - 高级机器人（BotCaller, Weather, WebSearch）
-  - 功能性机器人（Calculator, Function Calling, File Analyzer）
-
-### 文档
-
-- [QUICKSTART.md](QUICKSTART.md)：通过最小设置在 5 分钟内开始使用
-- [DEPLOYMENT.md](DEPLOYMENT.md)：带有截图的分步部署指南
-- [examples/](examples/)：示例机器人和实现指南
-- 本 README：框架完整文档
-
-## 什么是 Poe？
-
-[Poe](https://poe.com/) 是一个与 AI 模型和自定义机器人交互的平台。Poe 允许开发者创建可供平台上任何人使用的自定义机器人。本框架使创建和部署 Poe 机器人变得简单。
-
-## 入门指南
-
-### 前提条件
-
-- 安装 Python 3.8+
-- 用于测试和部署的 [Poe](https://poe.com/) 账户
-- 用于云部署的 [Modal](https://modal.com/) 账户（可选）
-
-### 安装
-
-1. 克隆仓库：
-   ```bash
-   git clone https://github.com/YushengAuggie/poe-bot-host.git
-   cd poe-bot-host
-   ```
-
-2. 创建虚拟环境：
-   ```bash
-   python -m venv venv
-   ```
-
-3. 激活虚拟环境：
-   - Windows：`venv\Scripts\activate`
-   - macOS/Linux：`source venv/bin/activate`
-
-4. 安装依赖：
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. (可选) 安装开发依赖：
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-## 核心概念
-
-### 机器人架构
-
-- **BaseBot**：提供通用功能的抽象基类
-- **Bot Factory**：自动从 `bots` 目录发现和加载机器人
-- **API**：托管所有机器人的基于 FastAPI 的 API
-
-### 目录结构
+一个用于 Poe 平台的多机器人框架，简化了机器人的创建、部署和管理。
 
 ```
 poe_bots/
-├── app.py              # 主 API 应用程序
-├── run_local.py        # 本地运行平台的脚本
-├── run_local.sh        # 带 CLI 选项的助手脚本
-├── test_bot.py         # 测试机器人的脚本
-├── Makefile            # 开发常用命令
-├── QUICKSTART.md       # 快速入门指南
-├── DEPLOYMENT.md       # 详细部署指南
-├── .env.example        # 环境变量模板
-├── pyproject.toml      # Python 项目配置
-├── setup.py            # 兼容性包设置
-├── requirements.txt    # Python 依赖
-├── pyrightconfig.json  # Python 类型检查配置
-├── pytest.ini          # Pytest 配置
-├── bots/               # 机器人实现
-│   ├── __init__.py     # 包初始化
-│   ├── bot_caller_bot.py # 调用其他机器人的机器人
-│   ├── calculator_bot.py # 计算器机器人实现
-│   ├── echo_bot.py     # Echo 机器人实现
-│   ├── file_analyzer_bot.py # 文件分析机器人实现
-│   ├── function_calling_bot.py # 函数调用演示
-│   ├── reverse_bot.py  # Reverse 机器人实现
-│   ├── template_bot.py # 创建新机器人的模板
-│   ├── uppercase_bot.py # Uppercase 机器人实现
-│   ├── weather_bot.py  # 天气信息机器人
-│   └── web_search_bot.py # 网络搜索机器人实现
-├── examples/           # 示例机器人和指南
-│   ├── README.md       # 示例文档
-│   ├── standalone_echobot.py # 独立机器人示例
-│   ├── weather_bot.py  # 更复杂的机器人示例
-│   └── add_weather_bot.md # 添加天气机器人的指南
-├── tests/              # 测试套件
-│   ├── __init__.py     # 测试包初始化
-│   ├── conftest.py     # Pytest 配置
-│   ├── test_app.py     # 主应用测试
-│   ├── test_base_bot.py # BaseBot 类测试
-│   ├── test_bot_caller_bot.py # BotCallerBot 测试
-│   ├── test_bot_factory.py # BotFactory 类测试
-│   ├── test_calculator_bot.py # CalculatorBot 测试
-│   ├── test_config.py  # 配置测试
-│   ├── test_echo_bot.py # EchoBot 测试
-│   ├── test_file_analyzer_bot.py # FileAnalyzerBot 测试
-│   ├── test_function_calling_bot.py # FunctionCallingBot 测试
-│   ├── test_weather_bot.py # WeatherBot 测试
-│   └── test_web_search_bot.py # WebSearchBot 测试
-└── utils/              # 工具模块
-    ├── __init__.py     # 包初始化
-    ├── base_bot.py     # 具有通用功能的基础机器人类
-    ├── bot_factory.py  # 用于发现和创建机器人的工厂
-    └── config.py       # 配置管理
+├── 🌐 app.py          # 主 FastAPI 应用程序
+├── 🤖 bots/           # 机器人实现
+│   ├── echo_bot.py    # 简单回声机器人
+│   ├── weather_bot.py # 天气信息机器人
+│   └── ...            # 其他特色机器人
+├── 📘 examples/       # 示例代码和指南
+├── 🧪 tests/          # 全面的测试套件
+└── 🛠️ utils/          # 核心工具
+    ├── api_keys.py    # API 密钥管理
+    ├── base_bot.py    # 基础机器人架构
+    └── bot_factory.py # 机器人注册系统
 ```
+
+## 🚀 快速入门
+
+```bash
+# 克隆和安装
+git clone https://github.com/YushengAuggie/poe-bot-host.git
+cd poe-bot-host
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# 本地运行
+./run_local.sh
+
+# 测试机器人
+python test_bot.py --bot EchoBot --message "你好世界！"
+```
+
+需要更多详细信息？查看我们的[5分钟快速入门指南](QUICKSTART.md)。
+
+## 📚 文档
+
+- [**QUICKSTART.md**](QUICKSTART.md): 5分钟内入门
+- [**DEPLOYMENT.md**](DEPLOYMENT.md): 分步部署指南
+- [**Examples**](examples/): 示例机器人和实现指南
+
+## 🏗️ 项目架构
+
+Poe Bot Host 由以下主要组件组织：
+
+### 核心框架
+
+| 组件 | 目的 |
+|-----------|---------|
+| **app.py** | 用于机器人托管的主 FastAPI 应用程序 |
+| **utils/** | 机器人管理的核心工具 |
+| **run_local.py/.sh** | 本地开发服务器 |
+
+### 机器人实现
+
+| 组件 | 目的 |
+|-----------|---------|
+| **BaseBot** | 具有通用功能的抽象基类 |
+| **BotFactory** | 自动发现并注册所有机器人 |
+| **bots/** | 可直接使用的机器人实现 |
+
+### 包含的机器人类型
+
+- **基础机器人**: Echo, Reverse, Uppercase
+- **高级机器人**: BotCaller, Weather, WebSearch  
+- **功能性机器人**: Calculator, FunctionCalling, FileAnalyzer
+
+## 🔌 简化的 API 密钥管理
+
+本框架提供了一种简化的 API 密钥管理系统，用于与外部服务集成：
+
+```python
+from utils.api_keys import get_api_key
+
+# 从环境变量或 Modal 密钥获取 API 密钥
+openai_key = get_api_key("OPENAI_API_KEY")
+google_key = get_api_key("GOOGLE_API_KEY")
+custom_key = get_api_key("CUSTOM_SERVICE_API_KEY")
+```
+
+### 工作原理
+1. 首先检查环境变量（用于本地开发）
+2. 然后检查 Modal 密钥（用于云部署）
+3. 如果找不到密钥，则引发清晰的错误消息
+
+### 机器人集成示例
+```python
+# 在您的机器人实现中
+def get_client():
+    try:
+        return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
+    except Exception as e:
+        logger.warning(f"初始化客户端失败：{str(e)}")
+        return None
+```
+
+查看[API 密钥管理指南](examples/api_key_management.md)获取完整文档。
+
+## 🛠️ 开发工作流程
+
+1. **创建机器人**: 复制并修改 `bots/template_bot.py`
+2. **本地测试**: `./run_local.sh --debug`
+3. **验证**: `python test_bot.py --bot YourBot`
+4. **部署**: `modal deploy app.py`
+5. **在 Poe 上配置**: 连接到您的 Modal 端点
+
+## 🌟 创建您的第一个机器人
+
+```python
+from fastapi_poe.types import PartialResponse, QueryRequest
+from utils.base_bot import BaseBot
+
+class MyAwesomeBot(BaseBot):
+    bot_name = "MyAwesomeBot"
+    bot_description = "做一些很棒的事情"
+
+    async def get_response(self, query: QueryRequest):
+        user_message = self._extract_message(query)
+        response = f"您说：{user_message}"
+        yield PartialResponse(text=response)
+```
+
+有关更多详细信息，请参阅下面的[创建新机器人](#创建新机器人)部分。
+
+## 📋 完整文档
+
+以下部分包含框架的完整文档。
+
+---
 
 ## 本地运行平台
 

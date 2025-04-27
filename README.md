@@ -2,131 +2,135 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A multi-bot hosting framework for the Poe platform.
-
-## Overview
-
-The Poe Bot Host is a comprehensive platform for creating, testing, deploying, and managing multiple bots on the Poe platform. This framework simplifies the process of developing and hosting bots by providing:
-
-- A unified API for hosting multiple bots
-- A robust base bot architecture with error handling
-- Automatic bot discovery and registration
-- Comprehensive testing tools
-- Simplified deployment process with Modal integration
-- Standardized logging and error reporting
-- Multiple example bots with different capabilities:
-  - Basic bots (Echo, Reverse, Uppercase)
-  - Advanced bots (BotCaller, Weather, WebSearch)
-  - Functional bots (Calculator, Function Calling, File Analyzer)
-
-### Documentation
-
-- [QUICKSTART.md](QUICKSTART.md): Get started in 5 minutes with a minimal setup
-- [DEPLOYMENT.md](DEPLOYMENT.md): Step-by-step guide with screenshots for deployment
-- [examples/](examples/): Example bots and implementation guides
-- This README: Complete documentation for the framework
-
-## What is Poe?
-
-[Poe](https://poe.com/) is a platform for interacting with AI models and custom bots. Poe allows developers to create custom bots that can be used by anyone on the platform. This framework makes it easy to create and deploy Poe bots.
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.8+ installed
-- A [Poe](https://poe.com/) account for testing and deployment
-- [Modal](https://modal.com/) account for cloud deployment (optional)
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/YushengAuggie/poe-bot-host.git
-   cd poe-bot-host
-   ```
-
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   ```
-
-3. Activate the virtual environment:
-   - Windows: `venv\Scripts\activate`
-   - macOS/Linux: `source venv/bin/activate`
-
-4. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. (Optional) Install development dependencies:
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-## Key Concepts
-
-### Bot Architecture
-
-- **BaseBot**: The abstract base class that provides common functionality
-- **Bot Factory**: Automatically discovers and loads bots from the `bots` directory
-- **API**: FastAPI-based API that hosts all bots
-
-### Directory Structure
+A multi-bot hosting framework for the Poe platform that simplifies the creation, deployment, and management of bots.
 
 ```
 poe_bots/
-├── app.py              # Main API application
-├── run_local.py        # Script to run the platform locally
-├── run_local.sh        # Helper script with CLI options
-├── test_bot.py         # Script to test bots
-├── Makefile            # Common commands for development
-├── QUICKSTART.md       # Quick start guide
-├── DEPLOYMENT.md       # Detailed deployment guide
-├── .env.example        # Environment variable template
-├── pyproject.toml      # Python project configuration
-├── setup.py            # Package setup for compatibility
-├── requirements.txt    # Python dependencies
-├── pyrightconfig.json  # Python type checking configuration
-├── pytest.ini          # Pytest configuration
-├── bots/               # Bot implementations
-│   ├── __init__.py     # Package initialization
-│   ├── bot_caller_bot.py # Bot that calls other bots
-│   ├── calculator_bot.py # Calculator bot implementation
-│   ├── echo_bot.py     # Echo bot implementation
-│   ├── file_analyzer_bot.py # File analysis bot implementation
-│   ├── function_calling_bot.py # Function calling demonstration
-│   ├── reverse_bot.py  # Reverse bot implementation
-│   ├── template_bot.py # Template for creating new bots
-│   ├── uppercase_bot.py # Uppercase bot implementation
-│   ├── weather_bot.py  # Weather information bot
-│   └── web_search_bot.py # Web search bot implementation
-├── examples/           # Example bots and guides
-│   ├── README.md       # Examples documentation
-│   ├── standalone_echobot.py # Standalone bot example
-│   ├── weather_bot.py  # More complex bot example
-│   └── add_weather_bot.md # Guide for adding weather bot
-├── tests/              # Test suite
-│   ├── __init__.py     # Test package initialization
-│   ├── conftest.py     # Pytest configuration
-│   ├── test_app.py     # Tests for the main app
-│   ├── test_base_bot.py # Tests for BaseBot class
-│   ├── test_bot_caller_bot.py # Tests for BotCallerBot
-│   ├── test_bot_factory.py # Tests for BotFactory class
-│   ├── test_calculator_bot.py # Tests for CalculatorBot
-│   ├── test_config.py  # Tests for configuration
-│   ├── test_echo_bot.py # Tests for EchoBot
-│   ├── test_file_analyzer_bot.py # Tests for FileAnalyzerBot
-│   ├── test_function_calling_bot.py # Tests for FunctionCallingBot
-│   ├── test_weather_bot.py # Tests for WeatherBot
-│   └── test_web_search_bot.py # Tests for WebSearchBot
-└── utils/              # Utility modules
-    ├── __init__.py     # Package initialization
-    ├── base_bot.py     # Base bot class with common functionality
-    ├── bot_factory.py  # Factory for discovering and creating bots
-    └── config.py       # Configuration management
+├── 🌐 app.py          # Main FastAPI application
+├── 🤖 bots/           # Bot implementations
+│   ├── echo_bot.py    # Simple Echo Bot
+│   ├── weather_bot.py # Weather information bot
+│   └── ...            # Many other specialty bots
+├── 📘 examples/       # Example code and guides
+├── 🧪 tests/          # Comprehensive test suite
+└── 🛠️ utils/          # Core utilities
+    ├── api_keys.py    # API key management
+    ├── base_bot.py    # Base bot architecture
+    └── bot_factory.py # Bot registration system
 ```
+
+## 🚀 Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/YushengAuggie/poe-bot-host.git
+cd poe-bot-host
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# Run locally
+./run_local.sh
+
+# Test a bot
+python test_bot.py --bot EchoBot --message "Hello world!"
+```
+
+Need more details? Check out our [5-minute quickstart guide](QUICKSTART.md).
+
+## 📚 Documentation
+
+- [**QUICKSTART.md**](QUICKSTART.md): Get started in 5 minutes
+- [**DEPLOYMENT.md**](DEPLOYMENT.md): Step-by-step deployment guide
+- [**Examples**](examples/): Example bots and implementation guides
+
+## 🏗️ Project Architecture
+
+The Poe Bot Host is organized into these main components:
+
+### Core Framework
+
+| Component | Purpose |
+|-----------|---------|
+| **app.py** | Main FastAPI application for bot hosting |
+| **utils/** | Core utilities for bot management |
+| **run_local.py/.sh** | Local development server |
+
+### Bot Implementation
+
+| Component | Purpose |
+|-----------|---------|
+| **BaseBot** | Abstract base class with common functionality |
+| **BotFactory** | Auto-discovers and registers all bots |
+| **bots/** | Ready-to-use bot implementations |
+
+### Included Bot Types
+
+- **Basic Bots**: Echo, Reverse, Uppercase
+- **Advanced Bots**: BotCaller, Weather, WebSearch  
+- **Functional Bots**: Calculator, FunctionCalling, FileAnalyzer
+
+## 🔌 Simplified API Key Management
+
+This framework provides a streamlined approach to API key management for both local development and cloud deployment:
+
+```python
+from utils.api_keys import get_api_key
+
+# Get API keys from environment or Modal secrets
+openai_key = get_api_key("OPENAI_API_KEY")
+google_key = get_api_key("GOOGLE_API_KEY")
+custom_key = get_api_key("CUSTOM_SERVICE_API_KEY")
+```
+
+### How It Works
+1. First checks environment variables (for local development)
+2. Then checks Modal secrets (for cloud deployment)
+3. Raises clear error messages if keys aren't found
+
+### Example Bot Integration
+```python
+# In your bot implementation
+def get_client():
+    try:
+        return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
+    except Exception as e:
+        logger.warning(f"Failed to initialize client: {str(e)}")
+        return None
+```
+
+See [API Key Management Guide](examples/api_key_management.md) for complete documentation.
+
+## 🛠️ Development Workflow
+
+1. **Create a Bot**: Copy and modify `bots/template_bot.py`
+2. **Test Locally**: `./run_local.sh --debug`
+3. **Verify**: `python test_bot.py --bot YourBot`
+4. **Deploy**: `modal deploy app.py`
+5. **Configure on Poe**: Connect to your Modal endpoint
+
+## 🌟 Creating Your First Bot
+
+```python
+from fastapi_poe.types import PartialResponse, QueryRequest
+from utils.base_bot import BaseBot
+
+class MyAwesomeBot(BaseBot):
+    bot_name = "MyAwesomeBot"
+    bot_description = "Does something awesome"
+
+    async def get_response(self, query: QueryRequest):
+        user_message = self._extract_message(query)
+        response = f"You said: {user_message}"
+        yield PartialResponse(text=response)
+```
+
+See the [Creating a New Bot](#creating-a-new-bot) section below for more details.
+
+## 📋 Full Documentation
+
+The sections below contain the complete documentation for the framework.
+
+---
 
 ## Running the Platform Locally
 
