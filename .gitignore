@@ -30,6 +30,8 @@ htmlcov/
 venv/
 env/
 ENV/
+temp_venv/
+temp_test_venv/
 
 # Environment variables
 .env
