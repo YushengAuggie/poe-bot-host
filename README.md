@@ -66,7 +66,7 @@ The Poe Bot Host is organized into these main components:
 ### Included Bot Types
 
 - **Basic Bots**: Echo, Reverse, Uppercase
-- **Advanced Bots**: BotCaller, Weather, WebSearch  
+- **Advanced Bots**: BotCaller, Weather, WebSearch
 - **Functional Bots**: Calculator, FunctionCalling, FileAnalyzer
 
 ## 🔌 Simplified API Key Management
@@ -418,6 +418,9 @@ Endpoints:
 ```
 
 Make note of this URL - you'll need it to configure your bots on Poe.
+
+> **IMPORTANT**: Always use `modal deploy deploy_bots.py` or `modal deploy app.py` commands to deploy.
+> Do not run `python deploy_bots.py` directly as it's designed to be used with the Modal CLI.
 
 If you want to deploy a standalone bot instead (using the example_standalone_bot.py), run:
 

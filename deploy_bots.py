@@ -8,6 +8,7 @@ of API secrets and dependencies for both OpenAI and Gemini bots.
 import logging
 import os
 import sys
+
 import modal
 
 # Set up logging
@@ -51,10 +52,10 @@ image = (
 def fastapi_app():
     """Create and return the FastAPI app for Modal deployment."""
     logger.info("Starting FastAPI app for Modal deployment")
-    
+
     # Import inside function to ensure Modal image context
     from utils.bot_factory import BotFactory
-    
+
     # Create the FastAPI app
     logger.info("Loading bots from 'bots' module")
     try:
@@ -65,12 +66,12 @@ def fastapi_app():
         logger.error(f"Error loading bots: {str(e)}")
         logger.exception("Exception details:")
         bot_classes = []
-    
+
     # Create a FastAPI app with all the bots
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
     api = BotFactory.create_app(bot_classes, allow_without_key=settings.ALLOW_WITHOUT_KEY)
-    
+
     # Add custom error handling
     @api.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
@@ -79,7 +80,7 @@ def fastapi_app():
             status_code=500,
             content={"error": "An internal server error occurred", "detail": str(exc)},
         )
-    
+
     # Add health check endpoint
     @api.get("/health")
     async def health_check():
@@ -96,20 +97,20 @@ def fastapi_app():
                 "allow_without_key": settings.ALLOW_WITHOUT_KEY,
             },
         }
-        
+
     # Add bot listing endpoint
     @api.get("/bots")
     async def list_bots():
         """List all available bots."""
         return BotFactory.get_available_bots()
-    
+
     # Add a debug endpoint
     @api.get("/debug_info")
     async def debug_info():
         """Get debug information about the deployment."""
-        import sys
         import inspect
-        
+        import sys
+
         result = {
             "python_version": sys.version,
             "python_path": sys.path,
@@ -121,15 +122,15 @@ def fastapi_app():
             "loaded_modules": list(sys.modules.keys())
         }
         return result
-    
+
     # Add a diagnostic endpoint
     @api.get("/keys_configured")
     async def check_api_keys():
         """Check if API keys are configured."""
         from utils.api_keys import get_api_key
-        
+
         result = {}
-        
+
         # Check OpenAI key
         try:
             openai_key = get_api_key("OPENAI_API_KEY")
@@ -140,7 +141,7 @@ def fastapi_app():
             }
         except Exception as e:
             result["openai"] = {"error": str(e)}
-        
+
         # Check Google key
         try:
             google_key = get_api_key("GOOGLE_API_KEY")
@@ -151,42 +152,50 @@ def fastapi_app():
             }
         except Exception as e:
             result["google"] = {"error": str(e)}
-            
+
         # Check environment variables (omitting sensitive values)
         env_vars = []
         for key in sorted(os.environ.keys()):
             # Only include non-sensitive keys
             if 'api' not in key.lower() and 'key' not in key.lower() and 'secret' not in key.lower():
                 env_vars.append(key)
-        
+
         result["environment"] = {
             "available_vars": env_vars,
             "api_keys": [k for k in os.environ.keys() if "api_key" in k.lower() or "key" in k.lower()]
         }
-        
+
         return result
-    
+
     logger.info("FastAPI app created successfully")
     return api
 
 if __name__ == "__main__":
-    print("Deploying Poe bots to Modal...")
-    print("To deploy, run: modal deploy deploy_bots.py")
-    print("To test locally, run: modal serve deploy_bots.py")
-    
-    # In Modal version 0.74.29 and later, use 'modal deploy' from command line
-    # If running locally, you can test the app
-    if modal.is_local():
-        print("\nRunning in local mode for testing...")
+    print("\n=== Poe Bots Deployment Tool ===")
+    print("\nThis script is not meant to be run directly with 'python deploy_bots.py'")
+    print("\nTo deploy to Modal, use:")
+    print("  modal deploy deploy_bots.py")
+    print("\nTo test locally, use:")
+    print("  modal serve deploy_bots.py")
+
+    # Check if being run for deployment via modal CLI
+    if "MODAL_ENVIRONMENT" in os.environ:
+        print("\nModal environment detected - proceeding with deployment...")
+        # This branch will be taken when running via 'modal deploy'
+    elif "--serve" in sys.argv:
+        # Add option to run for testing with argument
+        print("\nRunning in local development mode (--serve)")
         with app.run():
             print("API is running locally. Press Ctrl+C to stop.")
-            
-            # Keep the script running
+
             try:
+                # Set a reasonable timeout (10 minutes) instead of infinite loop
                 import time
-                while True:
+                for _ in range(600):  # 10 minutes
                     time.sleep(1)
+                print("\nAutomatic timeout after 10 minutes. Server stopped.")
             except KeyboardInterrupt:
-                print("Stopping local server...")
+                print("\nStopping local server...")
     else:
-        print("Running in Modal cloud deployment...")
+        print("\nExiting. Please use the modal CLI commands shown above.")
+        # Exit with helpful message instead of hanging indefinitely

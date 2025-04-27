@@ -148,7 +148,7 @@ class Gemini25FlashBot(GeminiBaseBot):
 
 
 class Gemini25ProExpBot(GeminiBaseBot):
-    """Gemini 2.5 Pro Preview - premium model for complex reasoning."""
+    """Gemini 2.5 Pro Experimental - premium model for complex reasoning."""
 
     model_name = "gemini-2.5-pro-exp-03-25"
     bot_name = "Gemini25ProExpBot"

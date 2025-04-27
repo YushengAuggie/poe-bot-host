@@ -91,9 +91,14 @@ python test_bot.py --bot MyAwesomeBot
 # Authenticate with Modal
 modal token new
 
-# Deploy all bots
+# Deploy all bots (use one of these commands)
 modal deploy app.py
+# or
+modal deploy deploy_bots.py
 ```
+
+> **Note**: Always use the `modal deploy` command. Never run `python deploy_bots.py` directly
+> as this script is designed to be used with the Modal CLI.
 
 Make note of the deployment URL.
 
