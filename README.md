@@ -238,38 +238,6 @@ curl -X POST "http://localhost:8000/echobot" \
   }'
 ```
 
-## Included Bots
-
-The framework comes with several example bots that demonstrate different capabilities:
-
-### Basic Bots
-
-- **EchoBot**: Echoes back the user's message
-- **ReverseBot**: Returns the user's message in reverse
-- **UppercaseBot**: Converts the user's message to uppercase
-- **TemplateBot**: A template for creating new bots
-
-### Advanced Bots
-
-- **BotCallerBot**: A bot that can call other bots in the framework:
-  - Lists all available bots in the system
-  - Calls other bots with specified messages
-  - Supports command pattern for bot interaction
-- **WeatherBot**: Provides weather information for any location
-- **WebSearchBot**: Searches the web for information
-
-### Functional Bots
-
-- **CalculatorBot**: Performs various mathematical calculations
-- **FunctionCallingBot**: Demonstrates function calling capabilities:
-  - Implements several functions (calculate, convert_units, get_current_time, generate_random_number)
-  - Shows how to define function specifications and parameters
-  - Demonstrates Poe API function calling protocol
-- **FileAnalyzerBot**: Analyzes uploaded files and provides statistics:
-  - Text extraction and analysis from uploaded files
-  - Support for various file formats (.txt, .csv, .md, .json, .yaml, code files)
-  - Detailed statistics for different file types
-  - Content preview functionality
 
 ## Creating a New Bot
 
@@ -682,9 +650,9 @@ On every push:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Author
+## Contributing
 
-Created with ❤️ by Yusheng Ding (auggie1024.d@gmail.com) for the Poe community.
+Created with ❤️ for the Poe community.
 
 ---
 

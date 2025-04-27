@@ -63,11 +63,6 @@ Poe Bot Host 由以下主要组件组织：
 | **BotFactory** | 自动发现并注册所有机器人 |
 | **bots/** | 可直接使用的机器人实现 |
 
-### 包含的机器人类型
-
-- **基础机器人**: Echo, Reverse, Uppercase
-- **高级机器人**: BotCaller, Weather, WebSearch  
-- **功能性机器人**: Calculator, FunctionCalling, FileAnalyzer
 
 ## 🔌 简化的 API 密钥管理
 
@@ -620,7 +615,7 @@ pre-commit install --hook-type pre-push
 
 本项目采用 MIT 许可证授权 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-## 作者
+## 贡献
 
 为 Poe 社区创建，充满❤️。
 
