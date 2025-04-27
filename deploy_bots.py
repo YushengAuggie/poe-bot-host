@@ -57,10 +57,14 @@ def fastapi_app():
     
     # Create the FastAPI app
     logger.info("Loading bots from 'bots' module")
-    bot_classes = BotFactory.load_bots_from_module("bots")
-    
-    if not bot_classes:
-        logger.warning("No bots found in 'bots' module!")
+    try:
+        bot_classes = BotFactory.load_bots_from_module("bots")
+        if not bot_classes:
+            logger.warning("No bots found in 'bots' module!")
+    except Exception as e:
+        logger.error(f"Error loading bots: {str(e)}")
+        logger.exception("Exception details:")
+        bot_classes = []
     
     # Create a FastAPI app with all the bots
     from fastapi import FastAPI, Request
@@ -75,6 +79,48 @@ def fastapi_app():
             status_code=500,
             content={"error": "An internal server error occurred", "detail": str(exc)},
         )
+    
+    # Add health check endpoint
+    @api.get("/health")
+    async def health_check():
+        """Health check endpoint."""
+        __version__ = "1.0.0"
+        return {
+            "status": "ok",
+            "version": __version__,
+            "bots": list(BotFactory.get_available_bots().keys()),
+            "bot_count": len(BotFactory.get_available_bots()),
+            "environment": {
+                "debug": settings.DEBUG,
+                "log_level": settings.LOG_LEVEL,
+                "allow_without_key": settings.ALLOW_WITHOUT_KEY,
+            },
+        }
+        
+    # Add bot listing endpoint
+    @api.get("/bots")
+    async def list_bots():
+        """List all available bots."""
+        return BotFactory.get_available_bots()
+    
+    # Add a debug endpoint
+    @api.get("/debug_info")
+    async def debug_info():
+        """Get debug information about the deployment."""
+        import sys
+        import inspect
+        
+        result = {
+            "python_version": sys.version,
+            "python_path": sys.path,
+            "module_path": inspect.getfile(BotFactory),
+            "bots_directory": os.listdir("/root/bots") if os.path.exists("/root/bots") else [],
+            "utils_directory": os.listdir("/root/utils") if os.path.exists("/root/utils") else [],
+            "working_directory": os.getcwd(),
+            "bot_classes": [str(bc) for bc in bot_classes] if bot_classes else [],
+            "loaded_modules": list(sys.modules.keys())
+        }
+        return result
     
     # Add a diagnostic endpoint
     @api.get("/keys_configured")
