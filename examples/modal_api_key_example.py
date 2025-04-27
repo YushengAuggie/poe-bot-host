@@ -29,10 +29,14 @@ from utils.api_keys import (
 )
 
 # Create a Modal app for the example
-app = create_modal_app("api-key-example", ["openai", "google-generativeai"])
+app = modal.App("api-key-example")
 
-# Create image with explicitly added local Python sources
-image = modal.Image.debian_slim().pip_install(["openai", "google-generativeai"]).add_local_python_source("utils")
+# Create a custom image with all required dependencies
+image = (
+    modal.Image.debian_slim()
+    .pip_install(["openai", "google-generativeai", "fastapi-poe>=0.0.21", "pydantic>=2.0.0"])
+    .add_local_python_source("utils")
+)
 
 # Update app to use the image
 app.image = image
