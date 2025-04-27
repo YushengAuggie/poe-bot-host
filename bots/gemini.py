@@ -36,8 +36,12 @@ def get_client():
 
         # Use our Google API key management
         api_key = get_api_key("GOOGLE_API_KEY")
-
-        return genai.GenerativeModel(model_name="gemini-2.0-flash", api_key=api_key)
+        
+        # Configure the API key at the module level
+        genai.configure(api_key=api_key)
+        
+        # Then create and return the model
+        return genai.GenerativeModel(model_name="gemini-2.0-flash")
     except (ImportError, Exception) as e:
         logger.warning(f"Failed to initialize Gemini client: {str(e)}")
         return GeminiClientStub()
