@@ -1,25 +1,24 @@
 import os
+import google.generativeai as genai
+from modal import App, Image, Secret
+from openai import OpenAI
 
-import modal
-
-from utils.api_keys import create_modal_app, get_function_secrets
+from utils.api_keys import get_api_key
 
 # Create a Modal app for the chatbot
-app = create_modal_app("chatbot-example", ["openai", "google-generativeai"])
+app = App("chatbot-example")
+image = Image.debian_slim().pip_install(["openai", "google-generativeai"])
+app.image = image
 
 
-@app.function(secrets=get_function_secrets(["openai"]))
+@app.function(secrets=[Secret.from_name("OPENAI_API_KEY")])
 def openai_chat(prompt):
     """
     Function that uses OpenAI's API to generate a chat response.
     Checks local environment first, then falls back to Modal secrets.
     """
-    from openai import OpenAI
-
-    from utils.api_keys import get_openai_api_key
-
     # This will check local env first, then Modal secrets
-    client = OpenAI(api_key=get_openai_api_key())
+    client = OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -29,18 +28,14 @@ def openai_chat(prompt):
     return response.choices[0].message.content
 
 
-@app.function(secrets=get_function_secrets(["google"]))
+@app.function(secrets=[Secret.from_name("GOOGLE_API_KEY")])
 def gemini_chat(prompt):
     """
     Function that uses Google's Gemini API to generate a chat response.
     Checks local environment first, then falls back to Modal secrets.
     """
-    import google.generativeai as genai
-
-    from utils.api_keys import get_google_api_key
-
     # This will check local env first, then Modal secrets
-    api_key = get_google_api_key()
+    api_key = get_api_key("GOOGLE_API_KEY")
     genai.configure(api_key=api_key)
 
     # Create a model and generate content
@@ -53,21 +48,16 @@ def gemini_chat(prompt):
 # Function that can be used for local testing without Modal
 def run_local(prompt, use_gemini=False):
     """Run the chat function locally without Modal."""
-    import google.generativeai as genai
-    from openai import OpenAI
-
-    from utils.api_keys import get_google_api_key, get_openai_api_key
-
     if use_gemini:
         print("Using Gemini locally:")
-        api_key = get_google_api_key()
+        api_key = get_api_key("GOOGLE_API_KEY")
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name="gemini-2.0-flash")
         response = model.generate_content(prompt)
         return response.text
     else:
         print("Using OpenAI locally:")
-        client = OpenAI(api_key=get_openai_api_key())
+        client = OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]

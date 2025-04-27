@@ -1,87 +1,103 @@
-# API Key Management System
+# Simplified API Key Management
 
-This guide describes how to use the API key management system for both local development and Modal deployment.
+This guide describes how to use the simplified API key management system for both local development and Modal deployment.
 
 ## Setting Up API Keys
 
 ### Local Development
 
-For local development, you can set environment variables in a `.env` file:
+For local development, set environment variables in a `.env` file:
 
 ```
 # .env file example
 OPENAI_API_KEY=your_openai_key_here
 GOOGLE_API_KEY=your_google_key_here
-
-# For Google service account credentials, you can use one of these:
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/credentials.json
-# or
-GOOGLE_APPLICATION_CREDENTIALS_JSON={"key": "value", "other_key": "other_value"}
+CUSTOM_SERVICE_API_KEY=your_custom_service_key_here
 ```
 
 ### Modal Deployment
 
-For Modal deployment, set up secrets:
+For Modal deployment, create secrets with the same names as your environment variables:
 
 ```bash
-# Set up OpenAI secret
-modal secret create openai-secret OPENAI_API_KEY=your_openai_key_here
-
-# Set up Google secret
-modal secret create googlecloud-secret GOOGLE_API_KEY=your_google_key_here
+# Set up API keys as Modal secrets
+modal secret create OPENAI_API_KEY sk-your-openai-key-here
+modal secret create GOOGLE_API_KEY your-google-key-here
+modal secret create CUSTOM_SERVICE_API_KEY your-custom-service-key-here
 ```
 
-For Google service account credentials, you can also use:
+## Using the API Keys in Your Code
 
-```bash
-# Setting the Google API key
-modal secret create googlecloud-secret GOOGLE_API_KEY=your_google_api_key_here
-```
-
-## Using the API Keys
-
-In your code, import and use the API key helpers:
+Import and use the generic API key function:
 
 ```python
-from utils.api_keys import get_openai_api_key, get_google_api_key
+from utils.api_keys import get_api_key
 
-# Get OpenAI API key (checks local env then Modal secrets)
-openai_key = get_openai_api_key()
-
-# Get Google API key (checks local env then Modal secrets)
-google_key = get_google_api_key()
+# Get API keys by their environment variable names
+openai_key = get_api_key("OPENAI_API_KEY")
+google_key = get_api_key("GOOGLE_API_KEY")
+custom_key = get_api_key("CUSTOM_SERVICE_API_KEY")
 ```
 
-For Modal apps, use the helper functions:
+The `get_api_key` function:
+1. First checks environment variables
+2. Then checks Modal secrets if running in a Modal environment
+3. Raises ValueError if the key is not found
+
+## Example: Using API Keys with Service Clients
 
 ```python
-from utils.api_keys import create_modal_app, get_function_secrets
+import os
+from openai import OpenAI
+from utils.api_keys import get_api_key
 
-# Create a Modal app with required packages
-app = create_modal_app("your-app-name", ["openai", "google-generativeai"])
+# Initialize OpenAI client
+def get_openai_client():
+    try:
+        return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
+    except Exception as e:
+        print(f"Failed to initialize OpenAI client: {e}")
+        return None
 
-# Add secrets to functions
-@app.function(secrets=get_function_secrets(["openai", "google"]))
-def your_function():
-    # Your code here
-    pass
+# Initialize Google client
+def get_google_client():
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=get_api_key("GOOGLE_API_KEY"))
+        return genai.GenerativeModel("gemini-1.0-pro")
+    except Exception as e:
+        print(f"Failed to initialize Google client: {e}")
+        return None
 ```
 
-## Example: Modal Bot
+## Modal Function with API Keys
 
-See `modal_bot_example.py` for a complete example that demonstrates:
+For Modal applications, use Modal's secret mounting:
 
-1. Running locally with environment variables
-2. Running on Modal with secrets
-3. Seamless switching between the two environments
+```python
+import modal
+from modal import App, Secret
 
-```bash
-# Run locally
-python examples/modal_bot_example.py --local
+app = App("my-app")
 
-# Deploy to Modal
-modal deploy examples/modal_bot_example.py
-
-# Run on Modal
-modal run examples/modal_bot_example.py
+@app.function(secrets=[Secret.from_name("OPENAI_API_KEY")])
+def function_using_openai():
+    # The key will be available as an environment variable
+    from utils.api_keys import get_api_key
+    
+    openai_key = get_api_key("OPENAI_API_KEY")
+    # Use the key...
+    
+# Or use multiple secrets
+@app.function(secrets=[
+    Secret.from_name("OPENAI_API_KEY"), 
+    Secret.from_name("GOOGLE_API_KEY")
+])
+def function_using_multiple_apis():
+    # Both keys will be available
+    from utils.api_keys import get_api_key
+    
+    openai_key = get_api_key("OPENAI_API_KEY")
+    google_key = get_api_key("GOOGLE_API_KEY")
+    # Use the keys...
 ```

@@ -4,7 +4,7 @@ from typing import Any, AsyncGenerator, Dict, Optional, Union
 
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
-from utils.api_keys import get_google_api_key
+from utils.api_keys import get_api_key
 from utils.base_bot import BaseBot
 
 # Get the logger
@@ -35,7 +35,7 @@ def get_client():
         import google.generativeai as genai
 
         # Use our Google API key management
-        api_key = get_google_api_key()
+        api_key = get_api_key("GOOGLE_API_KEY")
 
         return genai.GenerativeModel(model_name="gemini-2.0-flash", api_key=api_key)
     except (ImportError, Exception) as e:

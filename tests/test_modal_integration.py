@@ -12,65 +12,71 @@ class TestModalIntegration:
     """Tests for Modal integration."""
 
     @patch("modal.Secret.from_name")
-    def test_key_secret_application(self, mock_from_name):
-        """Test using the KEY secret in a Modal app function."""
-        # Since we can't easily test the Modal function object directly,
-        # we'll patch the Secret.from_name and verify it's called correctly
+    def test_api_key_retrieval(self, mock_from_name):
+        """Test retrieving API keys using Secret.from_name."""
+        # Set up the mock
         mock_secret = MagicMock()
+        mock_secret.get.return_value = "mock-api-key-value"
         mock_from_name.return_value = mock_secret
 
-        # Import the module to trigger the function definition
-        from examples.modal_api_key_example import check_key_secret
+        # Import after mocking to ensure the mock is applied
+        from utils.api_keys import get_api_key
 
-        # Verify the Secret.from_name was called with KEY
-        mock_from_name.assert_any_call("KEY")
+        # Set up a test environment with no env vars
+        with patch.dict(os.environ, {}, clear=True):
+            # Mock Modal environment
+            with patch("modal.is_local", return_value=False):
+                # Test retrieving a key
+                result = get_api_key("TEST_KEY")
+                
+                # Verify Secret.from_name was called with the right key
+                mock_from_name.assert_called_with("TEST_KEY")
+                assert result == "mock-api-key-value"
 
-    def test_service_secrets_application(self):
-        """Test using service-specific secrets in a Modal app function."""
-        # Test a different way - inspect the actual code
-        # Import the module to access the functions
-        import inspect
-
-        from examples.modal_api_key_example import app
-        with open("/Users/yding/workspace_quora/poe_bots/examples/modal_api_key_example.py", "r") as f:
-            content = f.read()
-
-        # Verify the content contains the expected patterns
-        assert "secrets=get_function_secrets([\"openai\", \"google\"])" in content.replace("'", "\"")
-        assert "@app.function(secrets=get_function_secrets" in content
-
+    @pytest.mark.parametrize(
+        "key_name,env_value", 
+        [
+            ("OPENAI_API_KEY", "test-openai-key"),
+            ("GOOGLE_API_KEY", "test-google-key"),
+            ("CUSTOM_API_KEY", "test-custom-key")
+        ]
+    )
+    @patch("modal.is_local")
+    def test_api_key_environment_priority(self, mock_is_local, key_name, env_value):
+        """Test that environment variables take priority over Modal secrets."""
+        mock_is_local.return_value = False
+        
+        # Import the API key function
+        from utils.api_keys import get_api_key
+        
+        # Set up environment with the key
+        with patch.dict(os.environ, {key_name: env_value}, clear=True):
+            # Set up a mock that would be called if env var wasn't used
+            with patch("modal.Secret.from_name") as mock_from_name:
+                # The env var should be used, so Secret.from_name shouldn't be called
+                assert get_api_key(key_name) == env_value
+                mock_from_name.assert_not_called()
+    
     @pytest.mark.parametrize("secret_available", [True, False])
     @patch("modal.is_local")
     @patch.dict(os.environ, {}, clear=True)
-    def test_openai_key_retrieval_in_modal(self, mock_is_local, secret_available):
-        """Test retrieving OpenAI key in Modal environment."""
-        from utils.api_keys import get_openai_api_key
-
+    def test_modal_secret_fallback(self, mock_is_local, secret_available):
+        """Test Modal secret fallback when environment variable is not set."""
+        from utils.api_keys import get_api_key
+        
         # Mock Modal environment
         mock_is_local.return_value = False
-
-        # Set up environment as needed
-        if secret_available:
-            os.environ["OPENAI_API_KEY"] = "test-modal-key"
-            assert get_openai_api_key() == "test-modal-key"
-        else:
-            with pytest.raises(ValueError):
-                get_openai_api_key()
-
-    @pytest.mark.parametrize("secret_available", [True, False])
-    @patch("modal.is_local")
-    @patch.dict(os.environ, {}, clear=True)
-    def test_google_key_retrieval_in_modal(self, mock_is_local, secret_available):
-        """Test retrieving Google key in Modal environment."""
-        from utils.api_keys import get_google_api_key
-
-        # Mock Modal environment
-        mock_is_local.return_value = False
-
-        # Set up environment as needed
-        if secret_available:
-            os.environ["GOOGLE_API_KEY"] = "test-modal-google-key"
-            assert get_google_api_key() == "test-modal-google-key"
-        else:
-            with pytest.raises(ValueError):
-                get_google_api_key()
+        
+        # Mock Secret.from_name behavior based on whether secret is available
+        mock_secret = MagicMock()
+        mock_secret.get.return_value = "modal-secret-key"
+        
+        with patch("modal.Secret.from_name") as mock_from_name:
+            if secret_available:
+                mock_from_name.return_value = mock_secret
+                assert get_api_key("OPENAI_API_KEY") == "modal-secret-key"
+                mock_from_name.assert_called_with("OPENAI_API_KEY")
+            else:
+                mock_from_name.side_effect = ValueError("Secret not found")
+                with pytest.raises(ValueError):
+                    get_api_key("OPENAI_API_KEY")

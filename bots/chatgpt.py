@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Union
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 from openai import OpenAI
 
-from utils.api_keys import get_openai_api_key
+from utils.api_keys import get_api_key
 from utils.base_bot import BaseBot
 
 # Get the logger
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Initialize client globally
 def get_client():
     try:
-        return OpenAI(api_key=get_openai_api_key())
+        return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
     except Exception as e:
         logger.warning(f"Failed to initialize OpenAI client: {str(e)}")
         return None

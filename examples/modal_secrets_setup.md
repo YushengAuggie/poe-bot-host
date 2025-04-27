@@ -1,104 +1,134 @@
 # Setting Up Modal Secrets for API Keys
 
-This document explains how to set up Modal secrets for your API keys, which allows your bots to access external APIs like OpenAI and Google when deployed to Modal.
+This document explains how to set up Modal secrets for your API keys using the simplified API key management system.
 
 ## What are Modal Secrets?
 
 Modal secrets are a secure way to store sensitive information like API keys. When your code runs in Modal, these secrets are securely injected into the environment of your functions.
 
-## Option 1: Using a Single KEY Secret (Recommended)
+## Creating API Key Secrets
 
-The simplest approach is to create a single `KEY` secret that contains all your API keys:
+With the simplified API key approach, create individual secrets with the same names as your environment variables:
 
 ```bash
-# Create the KEY secret
-modal secret create KEY
+# Create API key secrets directly
+modal secret create OPENAI_API_KEY sk-...your-openai-key...
+modal secret create GOOGLE_API_KEY ...your-google-key...
+modal secret create CUSTOM_SERVICE_API_KEY ...your-custom-key...
 ```
 
-When prompted, add your API keys in the format:
+This creates secrets that match the environment variable names used in your local development environment.
 
-```
-OPENAI_API_KEY=sk-...your-openai-key...
-GOOGLE_API_KEY=...your-google-key...
-```
+## Using API Key Secrets in Modal Functions
 
-Then use the secret in your Modal functions:
+Use the secrets in your Modal functions:
 
 ```python
-import os
 import modal
+from modal import App, Secret
 
-app = modal.App()
+app = App("my-app")
 
-@app.function(secrets=[modal.Secret.from_name("KEY")])
-def my_function():
-    # Access keys from environment variables
-    openai_key = os.environ["OPENAI_API_KEY"]
-    google_key = os.environ["GOOGLE_API_KEY"]
-    # Use the keys...
-```
+# Use a single API key
+@app.function(secrets=[Secret.from_name("OPENAI_API_KEY")])
+def openai_function():
+    from utils.api_keys import get_api_key
+    
+    # get_api_key checks environment variables first, then Modal secrets
+    openai_key = get_api_key("OPENAI_API_KEY")
+    # Use the key...
 
-## Option 2: Using Service-Specific Secrets
-
-For more granular control, you can create separate secrets for each service:
-
-```bash
-# Create OpenAI-specific secret
-modal secret create OPENAI_API_KEY
-# Enter your OpenAI API key when prompted
-
-# Create Google-specific secret
-modal secret create GOOGLE_API_KEY
-# Enter your Google API key when prompted
-```
-
-Then use the secrets in your functions:
-
-```python
+# Use multiple API keys
 @app.function(secrets=[
-    modal.Secret.from_name("OPENAI_API_KEY"),
-    modal.Secret.from_name("GOOGLE_API_KEY")
+    Secret.from_name("OPENAI_API_KEY"),
+    Secret.from_name("GOOGLE_API_KEY")
 ])
-def my_function():
-    # Access keys from environment variables
-    openai_key = os.environ["OPENAI_API_KEY"]
-    google_key = os.environ["GOOGLE_API_KEY"]
+def multi_api_function():
+    from utils.api_keys import get_api_key
+    
+    # Access multiple API keys
+    openai_key = get_api_key("OPENAI_API_KEY")
+    google_key = get_api_key("GOOGLE_API_KEY")
     # Use the keys...
 ```
 
-## Using the API Key Management System
+## Creating an App with All Secrets
 
-This repository includes a helper system in `utils/api_keys.py` that makes working with API keys easier:
+If your app needs access to all API keys:
 
 ```python
-from utils.api_keys import get_function_secrets, get_openai_api_key, get_google_api_key
+import modal
+from modal import App, Secret
 
-# Create the Modal app
-app = modal.App()
+# List all secrets your app needs
+needed_secrets = [
+    Secret.from_name("OPENAI_API_KEY"),
+    Secret.from_name("GOOGLE_API_KEY"),
+    # Add more as needed
+]
 
-# Add secrets to a function
-@app.function(secrets=get_function_secrets(["openai", "google"]))
+app = App("my-app")
+
+@app.function(secrets=needed_secrets)
 def my_function():
-    # This will check local environment first, then Modal secrets
-    openai_key = get_openai_api_key()
-    google_key = get_google_api_key()
+    from utils.api_keys import get_api_key
+    
+    # All secrets are available
+    openai_key = get_api_key("OPENAI_API_KEY")
+    google_key = get_api_key("GOOGLE_API_KEY")
     # Use the keys...
 ```
 
-The `get_function_secrets()` function automatically handles both the combined `KEY` secret and service-specific secrets, trying each approach.
+## Testing Your Modal Secrets
 
-## Testing Your Setup
-
-Run the example script to verify your Modal secrets are working:
+Verify your Modal secrets are working:
 
 ```bash
-modal run examples/modal_api_key_example.py
+# Create a test script
+cat > test_modal_secrets.py << EOL
+import modal
+from modal import App, Secret
+import os
+
+app = App("secret-test")
+
+@app.function(secrets=[
+    Secret.from_name("OPENAI_API_KEY"),
+    Secret.from_name("GOOGLE_API_KEY")
+])
+def test_secrets():
+    print("Available API keys:")
+    for key_name in ["OPENAI_API_KEY", "GOOGLE_API_KEY"]:
+        if key_name in os.environ and os.environ[key_name]:
+            print(f"- {key_name}: {os.environ[key_name][:5]}...")
+        else:
+            print(f"- {key_name}: NOT FOUND")
+
+if __name__ == "__main__":
+    with app.run():
+        test_secrets.remote()
+EOL
+
+# Run the test
+modal run test_modal_secrets.py
 ```
 
-This will show which API keys are available in your Modal environment.
+## Troubleshooting Modal Secrets
 
-## Debugging Common Issues
+If you encounter issues:
 
-1. **Secret not found errors**: Make sure you've created the secrets in Modal with the exact names expected
-2. **Empty API keys**: Verify that the values were properly set when creating the secrets
-3. **Local vs remote environments**: Remember that local environment variables won't be available in Modal unless explicitly added as secrets
+1. **Secret not found errors**: 
+   - Verify the secret exists: `modal secret list`
+   - Check that secret names match exactly (case-sensitive)
+
+2. **Access issues**: 
+   - Make sure the secret is properly mounted: `@app.function(secrets=[Secret.from_name("SECRET_NAME")])`
+   - Test with a simple print statement to ensure the secret is accessible
+
+3. **Value problems**:
+   - If your API key is visible but not working, update it: `modal secret update SECRET_NAME new-value`
+   - Some secrets might have special characters that need proper escaping
+
+4. **Local vs Modal environment**:
+   - Remember that local environment variables are not automatically available in Modal
+   - The `get_api_key` function will check both environments appropriately
