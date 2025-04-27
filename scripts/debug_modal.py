@@ -6,8 +6,10 @@ This script queries and pretty-prints the debug info from a Modal deployment.
 """
 
 import json
-import requests
 import sys
+
+import requests
+
 
 def get_debug_info(url):
     """Get debug info from the specified URL."""
@@ -25,7 +27,7 @@ if __name__ == "__main__":
         url = sys.argv[1]
     else:
         url = "https://aibot2025us--aibot2025us-poe-bots-fastapi-app.modal.run"
-        
+
     print(f"Getting debug info from: {url}")
     debug_info = get_debug_info(url)
     print(json.dumps(debug_info, indent=2, sort_keys=True))

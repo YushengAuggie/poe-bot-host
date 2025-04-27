@@ -1,4 +1,5 @@
 import os
+
 import google.generativeai as genai
 from modal import App, Image, Secret
 from openai import OpenAI

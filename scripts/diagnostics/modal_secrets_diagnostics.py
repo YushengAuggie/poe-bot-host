@@ -10,15 +10,15 @@ Usage:
     python scripts/diagnostics/modal_secrets_diagnostics.py
 """
 
+import json
 import os
 import sys
-import json
-
-# Add the project root to path so utils module can be found
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import modal
 from modal import App, Secret
+
+# Add the project root to path so utils module can be found
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 app = App("secrets-diagnostic")
 
@@ -32,14 +32,14 @@ app = App("secrets-diagnostic")
 def test_secret_access():
     """Test detailed secret access to diagnose issues"""
     print("\n=== ENVIRONMENT VARIABLES ===")
-    
+
     # Show all environment variables (filtering out sensitive values)
     for name, value in sorted(os.environ.items()):
         if 'key' in name.lower() or 'token' in name.lower() or 'secret' in name.lower():
             print(f"{name}: **REDACTED**")
         else:
             print(f"{name}: {value}")
-    
+
     # Explicitly check for our keys
     print("\n=== CHECKING FOR SPECIFIC API KEYS ===")
     keys_to_check = [
@@ -49,7 +49,7 @@ def test_secret_access():
         "LOCAL_OPENAI_API_KEY",
         "LOCAL_GOOGLE_API_KEY"
     ]
-    
+
     for key_name in keys_to_check:
         value = os.environ.get(key_name)
         if value:
@@ -58,19 +58,19 @@ def test_secret_access():
             print(f"✓ Found {key_name}: {preview}")
         else:
             print(f"✗ {key_name} not found")
-    
+
     # Test the utility function
     try:
         print("\n=== TESTING get_api_key() FUNCTION ===")
         from utils.api_keys import get_api_key
-        
+
         try:
             openai_key = get_api_key("OPENAI_API_KEY")
             preview = f"{openai_key[:3]}...{openai_key[-3:]}" if openai_key and len(openai_key) > 10 else "**invalid**"
             print(f"OpenAI API key via get_api_key(): {preview}")
         except Exception as e:
             print(f"Error getting OpenAI key: {str(e)}")
-        
+
         try:
             google_key = get_api_key("GOOGLE_API_KEY")
             preview = f"{google_key[:3]}...{google_key[-3:]}" if google_key and len(google_key) > 10 else "**invalid**"
@@ -79,21 +79,21 @@ def test_secret_access():
             print(f"Error getting Google key: {str(e)}")
     except ImportError:
         print("Could not import utils.api_keys module")
-    
+
     # Test with OpenAI client
     try:
         print("\n=== TESTING OPENAI CLIENT ===")
         try:
             from openai import OpenAI
-            
+
             try:
                 from utils.api_keys import get_api_key
                 api_key = get_api_key("OPENAI_API_KEY")
                 print(f"Using API key: {api_key[:3]}... (length: {len(api_key)})")
-                
+
                 client = OpenAI(api_key=api_key)
                 print("OpenAI client initialized successfully")
-                
+
                 try:
                     # Try a simple completion to verify the key works
                     response = client.chat.completions.create(
