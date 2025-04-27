@@ -34,6 +34,7 @@ image = (
     modal.Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
     .pip_install("google-generativeai>=0.3.2")  # Ensure Gemini package is installed
+    .pip_install("pillow>=11.0.0")  # Ensure Pillow is installed for image processing
     .add_local_dir("utils", "/root/utils")
     .add_local_dir("bots", "/root/bots")
     .add_local_dir("tests", "/root/tests")
