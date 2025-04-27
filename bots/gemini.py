@@ -376,27 +376,7 @@ class GeminiBaseBot(BaseBot):
             async for resp in super().get_response(query):
                 yield resp
 
-    async def get_settings(self, settings_request):
-        """Get bot settings.
 
-        Override to enable attachments for image uploads.
-
-        Args:
-            settings_request: The settings request
-
-        Returns:
-            Settings response with attachments enabled
-        """
-        # Get settings from parent class
-        settings = await super().get_settings(settings_request)
-
-        # Enable attachments
-        settings.allow_attachments = True
-
-        return settings
-
-
-# Original Gemini Flash model (2.0)
 class GeminiBot(GeminiBaseBot):
     """Original Gemini bot implementation (uses 2.0 Flash model)."""
 
