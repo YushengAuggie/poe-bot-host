@@ -70,11 +70,13 @@ The Poe Bot Host is organized into these main components:
 - **Advanced Bots**: BotCaller, Weather, WebSearch
 - **Functional Bots**: Calculator, FunctionCalling, FileAnalyzer
 
-## 🔌 API Key Management Made Easy
+## 🔌 API & Access Key Management
 
-This framework simplifies API key management for both development and production:
+This framework manages two types of keys:
 
 ### 1️⃣ Third-Party API Keys (like OpenAI, Google)
+
+For external services, we use standard API keys:
 
 ```python
 from utils.api_keys import get_api_key
@@ -84,29 +86,30 @@ openai_key = get_api_key("OPENAI_API_KEY")
 google_key = get_api_key("GOOGLE_API_KEY")
 ```
 
-### 2️⃣ Bot-Specific Access Keys
+### 2️⃣ Poe Bot Access Keys
 
-Each bot on Poe requires its own access key, which you can get from your bot's settings page on Poe:
+Each bot on Poe requires its own **access key** (not API key), which you get from the Poe dashboard:
 
 1. Go to [creator.poe.com](https://creator.poe.com/)
 2. Click on your bot
 3. Go to the "API" tab
-4. Copy the access key (starts with "psk_...")
+4. Copy the bot access key (starts with "psk_...")
 
-### 🔑 Setting Up Access Keys
+### 🔑 Setting Up Bot Access Keys
 
 #### Step 1: Create a .env file
-Create a `.env` file in your project root with your access keys:
+Create a `.env` file in your project root with both your API keys and bot access keys:
 
 ```
 # .env file example
+# External service API keys
 OPENAI_API_KEY=sk-...your-openai-key...
 GOOGLE_API_KEY=AIza...your-google-key...
 
 # Bot-specific access keys (from Poe creator dashboard)
-ECHO_BOT_ACCESS_KEY=psk_...your-access-key...
-WEATHER_BOT_ACCESS_KEY=psk_...your-access-key...
-GEMINI_BOT_ACCESS_KEY=psk_...your-access-key...
+ECHO_BOT_ACCESS_KEY=psk_...your-bot-access-key...
+WEATHER_BOT_ACCESS_KEY=psk_...your-bot-access-key...
+GEMINI_BOT_ACCESS_KEY=psk_...your-bot-access-key...
 ```
 
 #### Step 2: Load the .env file in your app
@@ -119,10 +122,10 @@ from dotenv import load_dotenv
 load_dotenv()
 ```
 
-#### Step 3: That's it! Bots automatically find their keys
+#### Step 3: That's it! Bots automatically find their access keys
 
 ```python
-# The BaseBot class automatically looks up the appropriate key
+# The BaseBot class automatically looks up the appropriate access key
 # No need to modify any code when adding new bots!
 
 # Example of how it works internally:
@@ -131,7 +134,7 @@ bot = WeatherBot()  # Bot looks for WEATHER_BOT_ACCESS_KEY
 bot = GeminiBot()  # Bot looks for GEMINI_BOT_ACCESS_KEY
 ```
 
-### ✨ Flexible Naming Conventions
+### ✨ Flexible Access Key Naming Conventions
 
 Your bot access keys can use any of these formats (all will work):
 
@@ -153,16 +156,19 @@ For Modal, create secrets with the same names:
 
 ```bash
 # Create secrets in Modal
+# API keys for external services
 modal secret create OPENAI_API_KEY "sk-...your-key..."
-modal secret create WEATHER_BOT_ACCESS_KEY "psk_...your-key..."
+
+# Bot access keys from Poe
+modal secret create WEATHER_BOT_ACCESS_KEY "psk_...your-bot-access-key..."
 ```
 
-### 🔄 Syncing Bot Settings
+### 🔄 Syncing Bot Settings Using Access Keys
 
 Once your bot access keys are set up, you can sync bot settings with Poe:
 
 ```bash
-# Sync a specific bot
+# Sync a specific bot using its access key
 python sync_bot_settings.py --bot WeatherBot
 
 # Sync all bots that have access keys in your .env
@@ -172,7 +178,7 @@ python sync_bot_settings.py --all
 python sync_bot_settings.py --bot WeatherBot -v
 ```
 
-See [API Key Management Guide](API_KEY_MANAGEMENT.md) for complete documentation.
+See [API & Access Key Management Guide](API_KEY_MANAGEMENT.md) for complete documentation.
 
 ## 🛠️ Development Workflow
 

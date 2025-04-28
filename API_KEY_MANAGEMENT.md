@@ -1,6 +1,6 @@
-# API Key Management for Poe Bots
+# API Key and Bot Access Key Management
 
-This guide explains how to manage API keys for your Poe bots, especially when deploying to Modal.
+This guide explains how to manage both API keys for third-party services and bot-specific access keys for your Poe bots, especially when deploying to Modal.
 
 ## Preventing Secret Leaks
 
