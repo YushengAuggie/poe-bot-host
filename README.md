@@ -636,31 +636,6 @@ Always test your changes:
 5. Check linting: `make lint`
 6. Verify formatting: `make format`
 
-### Best Practices
-
-1. **Bot Design**:
-   - Keep bots focused on a single task
-   - Use clear, descriptive names and documentation
-   - Handle errors gracefully with specific error messages
-   - Consider user experience in responses
-
-2. **Code Organization**:
-   - Follow Python's PEP 8 style guide
-   - Use type hints for better IDE support
-   - Document all public methods and classes
-   - Keep related functionality together
-
-3. **Performance**:
-   - Use async functions for I/O-bound operations
-   - Keep bots stateless where possible
-   - Avoid unnecessary dependencies
-   - Consider caching for repeated operations
-
-4. **Security**:
-   - Never store credentials in code
-   - Use environment variables for sensitive information
-   - Validate all user inputs
-   - Keep dependencies updated
 
 ## Troubleshooting
 
