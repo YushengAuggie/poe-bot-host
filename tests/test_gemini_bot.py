@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi_poe.types import Attachment, PartialResponse, ProtocolMessage, QueryRequest
 
-from bots.gemini import GeminiBaseBot, GeminiBot, Gemini25FlashBot, Gemini25ProExpBot, get_client
+from bots.gemini import Gemini25FlashBot, Gemini25ProExpBot, GeminiBaseBot, GeminiBot, get_client
 from utils.base_bot import BotError
 
 
@@ -96,12 +96,29 @@ def sample_query_with_text():
 
 
 @pytest.fixture
+def sample_query_with_chat_history():
+    """Create a sample query with chat history."""
+    messages = [
+        ProtocolMessage(role="user", content="Hello, Gemini!"),
+        ProtocolMessage(role="bot", content="Hello! How can I help you today?"),
+        ProtocolMessage(role="user", content="What was my first message?"),
+    ]
+
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=messages,
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message",
+    )
+
+
+@pytest.fixture
 def sample_query_with_image(image_attachment):
     """Create a sample query with an image attachment."""
     message = ProtocolMessage(
-        role="user",
-        content="What do you see in this image?",
-        attachments=[image_attachment]
+        role="user", content="What do you see in this image?", attachments=[image_attachment]
     )
 
     return QueryRequest(
@@ -120,7 +137,7 @@ def sample_query_with_unsupported_attachment(unsupported_attachment):
     message = ProtocolMessage(
         role="user",
         content="What do you see in this document?",
-        attachments=[unsupported_attachment]
+        attachments=[unsupported_attachment],
     )
 
     return QueryRequest(
@@ -154,7 +171,7 @@ async def test_text_only_streaming_response(gemini_bot, sample_query_with_text):
         MagicMock(text=" there"),
         MagicMock(text=", this"),
         MagicMock(text=" is"),
-        MagicMock(text=" streaming")
+        MagicMock(text=" streaming"),
     ]
     # Setup the client to use the proper streaming method (stream=True parameter)
     mock_chunks_copy = mock_chunks.copy()
@@ -175,12 +192,15 @@ async def test_text_only_streaming_response(gemini_bot, sample_query_with_text):
     mock_client.generate_content.return_value = mock_stream_response
 
     # Allow import inside the function to work by creating a fake module
-    sys_modules_patcher = patch.dict('sys.modules', {
-        'google': MagicMock(),
-        'google.generativeai': MagicMock(),
-    })
+    sys_modules_patcher = patch.dict(
+        "sys.modules",
+        {
+            "google": MagicMock(),
+            "google.generativeai": MagicMock(),
+        },
+    )
 
-    with patch('bots.gemini.get_client', return_value=mock_client), sys_modules_patcher:
+    with patch("bots.gemini.get_client", return_value=mock_client), sys_modules_patcher:
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -188,14 +208,16 @@ async def test_text_only_streaming_response(gemini_bot, sample_query_with_text):
         # Verify streaming API was called correctly - with stream=True
         mock_client.generate_content.assert_called_once()
         call_args = mock_client.generate_content.call_args[1]
-        assert 'stream' in call_args, "stream parameter should be provided"
-        assert call_args['stream'] is True, "stream parameter should be True"
+        assert "stream" in call_args, "stream parameter should be provided"
+        assert call_args["stream"] is True, "stream parameter should be True"
 
         # Verify all chunks are returned as separate responses
-        assert len(responses) == len(mock_chunks), "Each chunk should be returned as a separate response"
+        assert len(responses) == len(
+            mock_chunks
+        ), "Each chunk should be returned as a separate response"
 
         # Verify the combined text is correct
-        full_text = "".join([r.text for r in responses if hasattr(r, 'text')])
+        full_text = "".join([r.text for r in responses if hasattr(r, "text")])
         assert full_text == "Hello there, this is streaming"
 
 
@@ -208,6 +230,27 @@ async def test_extract_attachments(gemini_base_bot, sample_query_with_image):
     assert attachments[0].name == "test.jpg"
     assert attachments[0].content_type == "image/jpeg"
     assert hasattr(attachments[0], "content")
+
+
+@pytest.mark.asyncio
+async def test_format_chat_history(gemini_base_bot, sample_query_with_chat_history):
+    """Test formatting chat history from a query."""
+    chat_history = gemini_base_bot._format_chat_history(sample_query_with_chat_history)
+
+    # Should have 3 messages (user, bot, user)
+    assert len(chat_history) == 3
+
+    # Check first message
+    assert chat_history[0]["role"] == "user"
+    assert chat_history[0]["parts"][0]["text"] == "Hello, Gemini!"
+
+    # Check second message
+    assert chat_history[1]["role"] == "model"  # bot role mapped to model for Gemini
+    assert chat_history[1]["parts"][0]["text"] == "Hello! How can I help you today?"
+
+    # Check third message
+    assert chat_history[2]["role"] == "user"
+    assert chat_history[2]["parts"][0]["text"] == "What was my first message?"
 
 
 @pytest.mark.asyncio
@@ -289,7 +332,7 @@ async def test_multimodal_input_handling(gemini_bot, sample_query_with_image):
     # For multimodal content, we use non-streaming mode
     mock_client.generate_content.return_value = MagicMock(text="I see an image")
 
-    with patch('bots.gemini.get_client', return_value=mock_client):
+    with patch("bots.gemini.get_client", return_value=mock_client):
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_image):
             responses.append(response)
@@ -305,14 +348,16 @@ async def test_multimodal_input_handling(gemini_bot, sample_query_with_image):
 
             # For image-only calls the first item should be for the image
             if len(contents) > 1:
-                assert "inline_data" in contents[0], "First item should contain inline_data for the image"
+                assert (
+                    "inline_data" in contents[0]
+                ), "First item should contain inline_data for the image"
                 assert "text" in contents[-1], "Last item should contain text prompt"
 
         # Verify response is properly processed
         assert len(responses) > 0
         assert any(isinstance(r, PartialResponse) for r in responses)
         # Combine all text responses to verify content
-        full_text = "".join([r.text for r in responses if hasattr(r, 'text')])
+        full_text = "".join([r.text for r in responses if hasattr(r, "text")])
         assert "I see an image" in full_text
 
 
@@ -325,10 +370,7 @@ async def test_image_output_handling_base64_fallback(gemini_bot, sample_query_wi
     inline_data = MockInlineData("image/jpeg", test_image_data)
     image_part = MockResponsePart(inline_data=inline_data)
 
-    mock_response = MockMultimodalResponse(
-        text="Here's an image I generated",
-        parts=[image_part]
-    )
+    mock_response = MockMultimodalResponse(text="Here's an image I generated", parts=[image_part])
 
     # Mock the client generation
     mock_client = MagicMock()
@@ -336,22 +378,34 @@ async def test_image_output_handling_base64_fallback(gemini_bot, sample_query_wi
     # First, mock the stream to return a chunk that has image parts
     # This will trigger the code path to get the full response
     image_chunk = MagicMock()
-    image_chunk.parts = [MockResponsePart(inline_data=None)]  # At least one part to trigger image check
+    image_chunk.parts = [
+        MockResponsePart(inline_data=None)
+    ]  # At least one part to trigger image check
     image_chunk.text = "Here's an image"
 
     mock_client.generate_content_stream.return_value = [image_chunk]
     mock_client.generate_content.return_value = mock_response
 
     # Create a proper image attachment that will pass the _process_image_attachment check
-    mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+    mock_attachment = MockAttachment(
+        "test.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+    )
     gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
     # Create a mock that will cause AttributeError on post_message_attachment to trigger fallback
-    with patch('bots.gemini.get_client', return_value=mock_client), \
-         patch.object(gemini_bot, 'post_message_attachment', side_effect=AttributeError("Method not available")), \
-         patch('PIL.Image.open'), \
-         patch('io.BytesIO'), \
-         patch('base64.b64encode', return_value=b'fake_base64_data'):
+    with (
+        patch("bots.gemini.get_client", return_value=mock_client),
+        patch.object(
+            gemini_bot,
+            "post_message_attachment",
+            side_effect=AttributeError("Method not available"),
+        ),
+        patch("PIL.Image.open"),
+        patch("io.BytesIO"),
+        patch("base64.b64encode", return_value=b"fake_base64_data"),
+    ):
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -365,7 +419,10 @@ async def test_image_output_handling_base64_fallback(gemini_bot, sample_query_wi
         # Look for markdown image in responses
         has_image_markdown = False
         for resp in responses:
-            if hasattr(resp, 'text') and '![Gemini generated image](data:image/jpeg;base64,' in resp.text:
+            if (
+                hasattr(resp, "text")
+                and "![Gemini generated image](data:image/jpeg;base64," in resp.text
+            ):
                 has_image_markdown = True
                 # For the fake base64 data we don't need to verify decoded data
                 # since we're mocking the actual encoding process
@@ -382,10 +439,7 @@ async def test_image_output_handling_poe_attachment(gemini_bot, sample_query_wit
     inline_data = MockInlineData("image/jpeg", test_image_data)
     image_part = MockResponsePart(inline_data=inline_data)
 
-    mock_response = MockMultimodalResponse(
-        text="Here's an image I generated",
-        parts=[image_part]
-    )
+    mock_response = MockMultimodalResponse(text="Here's an image I generated", parts=[image_part])
 
     # Mock the client generation
     mock_client = MagicMock()
@@ -407,12 +461,18 @@ async def test_image_output_handling_poe_attachment(gemini_bot, sample_query_wit
     mock_attachment_response = MockAttachmentResponse()
 
     # Create a proper image attachment that will pass the _process_image_attachment check
-    mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+    mock_attachment = MockAttachment(
+        "test.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+    )
     gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
     # Patch both the Gemini client and the attachment method
-    with patch('bots.gemini.get_client', return_value=mock_client), \
-         patch.object(gemini_bot, 'post_message_attachment', return_value=mock_attachment_response):
+    with (
+        patch("bots.gemini.get_client", return_value=mock_client),
+        patch.object(gemini_bot, "post_message_attachment", return_value=mock_attachment_response),
+    ):
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -426,7 +486,7 @@ async def test_image_output_handling_poe_attachment(gemini_bot, sample_query_wit
         # Look for Poe attachment reference in responses
         has_poe_attachment = False
         for resp in responses:
-            if hasattr(resp, 'text') and '![gemini_image.jpg][test_ref_123]' in resp.text:
+            if hasattr(resp, "text") and "![gemini_image.jpg][test_ref_123]" in resp.text:
                 has_poe_attachment = True
 
         assert has_poe_attachment, "Response should include a Poe attachment reference"
@@ -441,7 +501,7 @@ async def test_image_output_different_mime_types(gemini_bot, sample_query_with_t
         ("image/png", "png"),
         ("image/gif", "gif"),
         ("image/webp", "webp"),
-        ("image/unknown", "jpg")  # Should default to jpg
+        ("image/unknown", "jpg"),  # Should default to jpg
     ]
 
     # Mock for Poe attachment response
@@ -458,8 +518,7 @@ async def test_image_output_different_mime_types(gemini_bot, sample_query_with_t
         image_part = MockResponsePart(inline_data=inline_data)
 
         mock_response = MockMultimodalResponse(
-            text="Here's an image I generated",
-            parts=[image_part]
+            text="Here's an image I generated", parts=[image_part]
         )
 
         # Mock the client generation
@@ -475,12 +534,20 @@ async def test_image_output_different_mime_types(gemini_bot, sample_query_with_t
         mock_client.generate_content.return_value = mock_response
 
         # Create a proper image attachment that will pass the _process_image_attachment check
-        mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+        mock_attachment = MockAttachment(
+            "test.jpg",
+            "image/jpeg",
+            b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+        )
         gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
         # Patch both the Gemini client and the attachment method
-        with patch('bots.gemini.get_client', return_value=mock_client), \
-             patch.object(gemini_bot, 'post_message_attachment', return_value=mock_attachment_response):
+        with (
+            patch("bots.gemini.get_client", return_value=mock_client),
+            patch.object(
+                gemini_bot, "post_message_attachment", return_value=mock_attachment_response
+            ),
+        ):
             responses = []
             async for response in gemini_bot.get_response(sample_query_with_text):
                 responses.append(response)
@@ -489,10 +556,12 @@ async def test_image_output_different_mime_types(gemini_bot, sample_query_with_t
             expected_filename = f"gemini_image.{expected_ext}"
             has_correct_extension = False
             for resp in responses:
-                if hasattr(resp, 'text') and f'![{expected_filename}][test_ref_123]' in resp.text:
+                if hasattr(resp, "text") and f"![{expected_filename}][test_ref_123]" in resp.text:
                     has_correct_extension = True
 
-            assert has_correct_extension, f"Response should use correct file extension for {mime_type}"
+            assert (
+                has_correct_extension
+            ), f"Response should use correct file extension for {mime_type}"
 
 
 @pytest.mark.asyncio
@@ -504,10 +573,7 @@ async def test_image_upload_error_handling(gemini_bot, sample_query_with_text):
     inline_data = MockInlineData("image/jpeg", test_image_data)
     image_part = MockResponsePart(inline_data=inline_data)
 
-    mock_response = MockMultimodalResponse(
-        text="Here's an image I generated",
-        parts=[image_part]
-    )
+    mock_response = MockMultimodalResponse(text="Here's an image I generated", parts=[image_part])
 
     # Mock the client generation
     mock_client = MagicMock()
@@ -529,12 +595,18 @@ async def test_image_upload_error_handling(gemini_bot, sample_query_with_text):
     mock_failed_response = MockFailedAttachmentResponse()
 
     # Create a proper image attachment that will pass the _process_image_attachment check
-    mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+    mock_attachment = MockAttachment(
+        "test.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+    )
     gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
     # Patch both the Gemini client and the attachment method
-    with patch('bots.gemini.get_client', return_value=mock_client), \
-         patch.object(gemini_bot, 'post_message_attachment', return_value=mock_failed_response):
+    with (
+        patch("bots.gemini.get_client", return_value=mock_client),
+        patch.object(gemini_bot, "post_message_attachment", return_value=mock_failed_response),
+    ):
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -545,7 +617,7 @@ async def test_image_upload_error_handling(gemini_bot, sample_query_with_text):
         # Should show error message
         has_error_message = False
         for resp in responses:
-            if hasattr(resp, 'text') and '[Error uploading image to Poe]' in resp.text:
+            if hasattr(resp, "text") and "[Error uploading image to Poe]" in resp.text:
                 has_error_message = True
 
         assert has_error_message, "Response should include error message on failed upload"
@@ -566,8 +638,7 @@ async def test_multiple_images_in_response(gemini_bot, sample_query_with_text):
     image_part2 = MockResponsePart(inline_data=inline_data2)
 
     mock_response = MockMultimodalResponse(
-        text="Here are multiple images I generated",
-        parts=[image_part1, image_part2]
+        text="Here are multiple images I generated", parts=[image_part1, image_part2]
     )
 
     # Mock the client generation
@@ -595,12 +666,20 @@ async def test_multiple_images_in_response(gemini_bot, sample_query_with_text):
         return mock_responses.pop(0)
 
     # Create a proper image attachment that will pass the _process_image_attachment check
-    mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+    mock_attachment = MockAttachment(
+        "test.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+    )
     gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
     # Patch both the Gemini client and the attachment method
-    with patch('bots.gemini.get_client', return_value=mock_client), \
-         patch.object(gemini_bot, 'post_message_attachment', side_effect=mock_attachment_side_effect):
+    with (
+        patch("bots.gemini.get_client", return_value=mock_client),
+        patch.object(
+            gemini_bot, "post_message_attachment", side_effect=mock_attachment_side_effect
+        ),
+    ):
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -613,10 +692,10 @@ async def test_multiple_images_in_response(gemini_bot, sample_query_with_text):
         png_image_ref = False
 
         for resp in responses:
-            if hasattr(resp, 'text'):
-                if '![gemini_image.jpg][ref_1]' in resp.text:
+            if hasattr(resp, "text"):
+                if "![gemini_image.jpg][ref_1]" in resp.text:
                     jpeg_image_ref = True
-                if '![gemini_image.png][ref_2]' in resp.text:
+                if "![gemini_image.png][ref_2]" in resp.text:
                     png_image_ref = True
 
         assert jpeg_image_ref, "Response should include the JPEG image reference"
@@ -633,8 +712,7 @@ async def test_large_image_handling(gemini_bot, sample_query_with_text):
     image_part = MockResponsePart(inline_data=inline_data)
 
     mock_response = MockMultimodalResponse(
-        text="Here's a large image I generated",
-        parts=[image_part]
+        text="Here's a large image I generated", parts=[image_part]
     )
 
     # Mock the client generation
@@ -650,11 +728,15 @@ async def test_large_image_handling(gemini_bot, sample_query_with_text):
     mock_client.generate_content.return_value = mock_response
 
     # Create a proper image attachment that will pass the _process_image_attachment check
-    mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+    mock_attachment = MockAttachment(
+        "test.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+    )
     gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
     # Patch the Gemini client
-    with patch('bots.gemini.get_client', return_value=mock_client):
+    with patch("bots.gemini.get_client", return_value=mock_client):
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -665,10 +747,12 @@ async def test_large_image_handling(gemini_bot, sample_query_with_text):
         # Should have a size limit message
         has_size_limit_message = False
         for resp in responses:
-            if hasattr(resp, 'text') and '[Image too large to display]' in resp.text:
+            if hasattr(resp, "text") and "[Image too large to display]" in resp.text:
                 has_size_limit_message = True
 
-        assert has_size_limit_message, "Response should include a message about the image being too large"
+        assert (
+            has_size_limit_message
+        ), "Response should include a message about the image being too large"
 
 
 @pytest.mark.asyncio
@@ -679,7 +763,7 @@ async def test_process_streaming_helper_method(gemini_base_bot):
         MagicMock(text="Hello"),
         MagicMock(text=" world"),
         # Test a chunk with parts instead of direct text
-        MagicMock(text=None, parts=[MagicMock(text=" with"), MagicMock(text=" parts")])
+        MagicMock(text=None, parts=[MagicMock(text=" with"), MagicMock(text=" parts")]),
     ]
 
     # Create a proper async iterable stream
@@ -703,7 +787,7 @@ async def test_process_streaming_helper_method(gemini_base_bot):
 
     # Verify the method handled all chunk types correctly
     assert len(responses) == 4  # 2 direct text chunks + 2 from parts
-    full_text = "".join([r.text for r in responses if hasattr(r, 'text')])
+    full_text = "".join([r.text for r in responses if hasattr(r, "text")])
     assert full_text == "Hello world with parts"
 
     # Test error handling in the streaming method
@@ -726,7 +810,7 @@ async def test_process_streaming_with_non_async_iterable(gemini_base_bot):
         MagicMock(text="Hello"),
         MagicMock(text=" from"),
         MagicMock(text=" synchronous"),
-        MagicMock(text=" iterator")
+        MagicMock(text=" iterator"),
     ]
 
     # Standard iterator (not async)
@@ -750,13 +834,14 @@ async def test_process_streaming_with_non_async_iterable(gemini_base_bot):
 
     # Verify sync iteration works
     assert len(responses) == 4
-    full_text = "".join([r.text for r in responses if hasattr(r, 'text')])
+    full_text = "".join([r.text for r in responses if hasattr(r, "text")])
     assert full_text == "Hello from synchronous iterator"
 
 
 @pytest.mark.asyncio
 async def test_handling_missing_aiter_error(gemini_base_bot):
     """Test that our fix correctly handles the original error case."""
+
     # Create a mock object that lacks __aiter__ but would be used with async for
     class MockResponseWithoutAiter:
         def __init__(self):
@@ -814,7 +899,7 @@ async def test_fallback_to_non_streaming(gemini_base_bot, sample_query_with_text
 
     # Mock the generate_content method to fail on first call and succeed on second call
     def mock_generate_content(*args, **kwargs):
-        if kwargs.get('stream') is True:
+        if kwargs.get("stream") is True:
             raise Exception("Streaming failed")
         else:
             return mock_response
@@ -822,8 +907,10 @@ async def test_fallback_to_non_streaming(gemini_base_bot, sample_query_with_text
     mock_client.generate_content.side_effect = mock_generate_content
 
     # Test with a direct patch to isolate the function from other aspects
-    with patch.object(gemini_base_bot, '_extract_attachments', return_value=[]), \
-         patch.object(gemini_base_bot, '_prepare_image_parts', return_value=[]):
+    with (
+        patch.object(gemini_base_bot, "_extract_attachments", return_value=[]),
+        patch.object(gemini_base_bot, "_prepare_image_parts", return_value=[]),
+    ):
 
         responses = []
         async for response in gemini_base_bot._process_user_query(
@@ -837,13 +924,15 @@ async def test_fallback_to_non_streaming(gemini_base_bot, sample_query_with_text
 
         # Verify both streaming and non-streaming were attempted
         assert mock_client.generate_content.call_count == 2
-        assert mock_client.generate_content.call_args_list[0][1].get('stream') is True
-        assert 'stream' in mock_client.generate_content.call_args_list[1][1]
-        assert mock_client.generate_content.call_args_list[1][1].get('stream') is False
+        assert mock_client.generate_content.call_args_list[0][1].get("stream") is True
+        assert "stream" in mock_client.generate_content.call_args_list[1][1]
+        assert mock_client.generate_content.call_args_list[1][1].get("stream") is False
 
 
 @pytest.mark.asyncio
-async def test_process_user_query_helper(gemini_base_bot, sample_query_with_text, sample_query_with_image):
+async def test_process_user_query_helper(
+    gemini_base_bot, sample_query_with_text, sample_query_with_image
+):
     """Test the _process_user_query helper method to ensure it handles different content types correctly."""
     # Mock client
     mock_client = MagicMock()
@@ -869,20 +958,25 @@ async def test_process_user_query_helper(gemini_base_bot, sample_query_with_text
     mock_client.generate_content.return_value = mock_stream
 
     # Allow import inside the function to work by creating a fake module
-    sys_modules_patcher = patch.dict('sys.modules', {
-        'google': MagicMock(),
-        'google.generativeai': MagicMock(),
-    })
+    sys_modules_patcher = patch.dict(
+        "sys.modules",
+        {
+            "google": MagicMock(),
+            "google.generativeai": MagicMock(),
+        },
+    )
 
     # For text-only queries
     responses = []
     with sys_modules_patcher:
-        async for response in gemini_base_bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+        async for response in gemini_base_bot._process_user_query(
+            mock_client, "Hello", sample_query_with_text
+        ):
             responses.append(response)
 
     # Verify streaming was used
     mock_client.generate_content.assert_called_once()
-    assert mock_client.generate_content.call_args[1].get('stream') is True
+    assert mock_client.generate_content.call_args[1].get("stream") is True
     assert len(responses) == 1
     assert "Streaming text response" in responses[0].text
 
@@ -890,22 +984,24 @@ async def test_process_user_query_helper(gemini_base_bot, sample_query_with_text
     mock_client.reset_mock()
 
     # Mock image processing
-    with patch.object(
-        gemini_base_bot,
-        '_extract_attachments',
-        return_value=["mock_image"]
-    ), patch.object(
-        gemini_base_bot,
-        '_prepare_image_parts',
-        return_value=[{"mime_type": "image/jpeg", "data": b"fake-image"}]
-    ), patch.object(
-        gemini_base_bot,
-        '_process_multimodal_content',
-        new=lambda *args, **kwargs: async_generator(PartialResponse(text="Image response"))
+    with (
+        patch.object(gemini_base_bot, "_extract_attachments", return_value=["mock_image"]),
+        patch.object(
+            gemini_base_bot,
+            "_prepare_image_parts",
+            return_value=[{"mime_type": "image/jpeg", "data": b"fake-image"}],
+        ),
+        patch.object(
+            gemini_base_bot,
+            "_process_multimodal_content",
+            new=lambda *args, **kwargs: async_generator(PartialResponse(text="Image response")),
+        ),
     ):
         # For image queries
         responses = []
-        async for response in gemini_base_bot._process_user_query(mock_client, "What's in this image?", sample_query_with_image):
+        async for response in gemini_base_bot._process_user_query(
+            mock_client, "What's in this image?", sample_query_with_image
+        ):
             responses.append(response)
 
         # For multimodal, should not use streaming
@@ -958,8 +1054,7 @@ async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
     image_part = MockResponsePart(inline_data=inline_data)
 
     mock_response = MockMultimodalResponse(
-        text="Here's an image that needs resizing",
-        parts=[image_part]
+        text="Here's an image that needs resizing", parts=[image_part]
     )
 
     # Mock the client generation
@@ -981,17 +1076,25 @@ async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
     mock_image.format = "JPEG"
     # Return smaller image data when saved
     mock_buffer = MagicMock()
-    mock_buffer.getvalue.return_value = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 1000  # Much smaller
+    mock_buffer.getvalue.return_value = (
+        b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 1000
+    )  # Much smaller
 
     # Create a proper image attachment that will pass the _process_image_attachment check
-    mock_attachment = MockAttachment("test.jpg", "image/jpeg", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9")
+    mock_attachment = MockAttachment(
+        "test.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00\x43\x00\xff\xd9",
+    )
     gemini_bot._extract_attachments = MagicMock(return_value=[mock_attachment])
 
     # Setup exception for attachment that forces the base64 fallback path
-    with patch('bots.gemini.get_client', return_value=mock_client), \
-         patch.object(gemini_bot, 'post_message_attachment', side_effect=Exception("Forced error")), \
-         patch('PIL.Image.open', return_value=mock_image), \
-         patch('io.BytesIO', return_value=mock_buffer):
+    with (
+        patch("bots.gemini.get_client", return_value=mock_client),
+        patch.object(gemini_bot, "post_message_attachment", side_effect=Exception("Forced error")),
+        patch("PIL.Image.open", return_value=mock_image),
+        patch("io.BytesIO", return_value=mock_buffer),
+    ):
 
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
@@ -1003,7 +1106,7 @@ async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
         # Should have base64 image in response
         has_base64_image = False
         for resp in responses:
-            if hasattr(resp, 'text') and 'data:image/jpeg;base64,' in resp.text:
+            if hasattr(resp, "text") and "data:image/jpeg;base64," in resp.text:
                 has_base64_image = True
 
         assert has_base64_image, "Response should include a base64 encoded image after resizing"
@@ -1012,7 +1115,7 @@ async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
 @pytest.mark.asyncio
 async def test_prepare_content(gemini_base_bot):
     """Test the _prepare_content helper method."""
-    # Test with text only
+    # Test with text only (no chat history)
     text_only_content = gemini_base_bot._prepare_content("Hello, Gemini!", [])
     assert isinstance(text_only_content, list)
     assert len(text_only_content) == 1
@@ -1021,7 +1124,7 @@ async def test_prepare_content(gemini_base_bot):
     # Test with images
     image_parts = [
         {"mime_type": "image/jpeg", "data": b"fake-jpeg-data"},
-        {"mime_type": "image/png", "data": b"fake-png-data"}
+        {"mime_type": "image/png", "data": b"fake-png-data"},
     ]
 
     multimodal_content = gemini_base_bot._prepare_content("Describe these images", image_parts)
@@ -1036,6 +1139,110 @@ async def test_prepare_content(gemini_base_bot):
 
     # Last item should be the text prompt
     assert multimodal_content[2]["text"] == "Describe these images"
+
+    # Test with chat history
+    chat_history = [
+        {"role": "user", "parts": [{"text": "Hello"}]},
+        {"role": "model", "parts": [{"text": "Hi there"}]},
+    ]
+
+    # New user message should be added to history
+    content_with_history = gemini_base_bot._prepare_content("How are you?", [], chat_history)
+    assert isinstance(content_with_history, list)
+    assert len(content_with_history) == 3  # 3 messages in history
+
+    # First two messages should be unchanged
+    assert content_with_history[0]["role"] == "user"
+    assert content_with_history[0]["parts"][0]["text"] == "Hello"
+    assert content_with_history[1]["role"] == "model"
+    assert content_with_history[1]["parts"][0]["text"] == "Hi there"
+
+    # Third message should be the new user message
+    assert content_with_history[2]["role"] == "user"
+    assert content_with_history[2]["parts"][0]["text"] == "How are you?"
+
+    # Test with chat history where the last message is from the user
+    chat_history_user_last = [
+        {"role": "user", "parts": [{"text": "Hello"}]},
+        {"role": "model", "parts": [{"text": "Hi there"}]},
+        {"role": "user", "parts": [{"text": "Old message"}]},
+    ]
+
+    # Should update the last user message instead of adding a new one
+    content_with_history_updated = gemini_base_bot._prepare_content(
+        "New message", [], chat_history_user_last
+    )
+    assert isinstance(content_with_history_updated, list)
+    assert len(content_with_history_updated) == 3  # Still 3 messages
+
+    # First two messages should be unchanged
+    assert content_with_history_updated[0]["role"] == "user"
+    assert content_with_history_updated[0]["parts"][0]["text"] == "Hello"
+    assert content_with_history_updated[1]["role"] == "model"
+    assert content_with_history_updated[1]["parts"][0]["text"] == "Hi there"
+
+    # Third message should be updated
+    assert content_with_history_updated[2]["role"] == "user"
+    assert content_with_history_updated[2]["parts"][0]["text"] == "New message"  # Updated
+
+
+@pytest.mark.asyncio
+async def test_multiturn_conversation(gemini_bot, sample_query_with_chat_history):
+    """Test handling of a multi-turn conversation."""
+    # Mock the client generation to avoid actual API calls
+    mock_client = MagicMock()
+
+    # Set up streaming response with a simple response
+    mock_response = MagicMock(text="Your first message was 'Hello, Gemini!'")
+    mock_chunks = [mock_response]
+
+    # Setup async iterator for streaming
+    class MockAsyncIterator:
+        def __init__(self, chunks):
+            self.chunks = chunks
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.chunks:
+                raise StopAsyncIteration
+            return self.chunks.pop(0)
+
+    mock_stream_response = MockAsyncIterator(mock_chunks.copy())
+    mock_client.generate_content.return_value = mock_stream_response
+
+    # Allow import inside the function to work by creating a fake module
+    sys_modules_patcher = patch.dict(
+        "sys.modules",
+        {
+            "google": MagicMock(),
+            "google.generativeai": MagicMock(),
+        },
+    )
+
+    with patch("bots.gemini.get_client", return_value=mock_client), sys_modules_patcher:
+        responses = []
+        async for response in gemini_bot.get_response(sample_query_with_chat_history):
+            responses.append(response)
+
+        # Verify chat history was used in the API call
+        mock_client.generate_content.assert_called_once()
+        args, kwargs = mock_client.generate_content.call_args
+
+        # Extract the contents argument
+        contents = args[0]
+
+        # Check that the content includes multiple messages (chat history)
+        assert isinstance(contents, list)
+        assert len(contents) >= 3  # At least 3 messages from our chat history
+
+        # Check that streaming was enabled
+        assert kwargs.get("stream") is True
+
+        # Check response
+        assert len(responses) == 1
+        assert "Your first message was 'Hello, Gemini!'" in responses[0].text
 
 
 @pytest.mark.asyncio
@@ -1065,22 +1272,27 @@ async def test_process_user_query(gemini_bot, sample_query_with_text, sample_que
     mock_client.generate_content.return_value = mock_stream
 
     # Allow import inside the function to work by creating a fake module
-    sys_modules_patcher = patch.dict('sys.modules', {
-        'google': MagicMock(),
-        'google.generativeai': MagicMock(),
-    })
+    sys_modules_patcher = patch.dict(
+        "sys.modules",
+        {
+            "google": MagicMock(),
+            "google.generativeai": MagicMock(),
+        },
+    )
 
     # Process text-only query
     responses = []
     with sys_modules_patcher:
-        async for response in gemini_bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+        async for response in gemini_bot._process_user_query(
+            mock_client, "Hello", sample_query_with_text
+        ):
             responses.append(response)
 
     # Verify text-only processing
     assert len(responses) == 1
     assert responses[0].text == "Hello from Gemini"
     assert mock_client.generate_content.called
-    assert mock_client.generate_content.call_args[1].get('stream') is True
+    assert mock_client.generate_content.call_args[1].get("stream") is True
 
     # Reset the mock
     mock_client.reset_mock()
@@ -1093,11 +1305,13 @@ async def test_process_user_query(gemini_bot, sample_query_with_text, sample_que
     # Mock the attachments processing to return an image part
     with patch.object(
         gemini_bot,
-        '_prepare_image_parts',
-        return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}]
+        "_prepare_image_parts",
+        return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}],
     ):
         responses = []
-        async for response in gemini_bot._process_user_query(mock_client, "What's in this image?", sample_query_with_image):
+        async for response in gemini_bot._process_user_query(
+            mock_client, "What's in this image?", sample_query_with_image
+        ):
             responses.append(response)
 
         # Verify multimodal processing
@@ -1114,73 +1328,80 @@ async def test_process_user_query_for_all_model_versions(sample_query_with_text)
     gemini_20_bot = GeminiBot()  # 2.0 model
     gemini_25_flash_bot = Gemini25FlashBot()  # 2.5 Flash model
     gemini_25_pro_bot = Gemini25ProExpBot()  # 2.5 Pro model
-    
+
     bots = [gemini_20_bot, gemini_25_flash_bot, gemini_25_pro_bot]
-    
+
     # Create two different mock response classes for different model behaviors
-    
+
     # Mock for newer models with resolve() method
     class MockResolveResponse:
         """Mock a streaming response for newer Gemini models that use resolve()."""
-        
+
         def __init__(self, text):
             self.text = text
-        
+
         def __iter__(self):
             yield MagicMock(text=self.text)
-            
+
         def resolve(self):
             return MagicMock(text=self.text)
-            
+
     # Mock for models that use async iteration
     class MockAsyncResponse:
         """Mock a streaming response that uses async iteration."""
-        
+
         def __init__(self, text):
             self.text = text
-        
+
         def __aiter__(self):
             return self
-            
+
         async def __anext__(self):
             if hasattr(self, "_yielded") and self._yielded:
                 raise StopAsyncIteration
             self._yielded = True
             return MagicMock(text=self.text)
-    
+
     # Create a mock client that works for all scenarios
     mock_client = MagicMock()
-    
+
     # Set up sys.modules patch to allow imports
-    sys_modules_patcher = patch.dict('sys.modules', {
-        'google': MagicMock(),
-        'google.generativeai': MagicMock(),
-    })
-    
+    sys_modules_patcher = patch.dict(
+        "sys.modules",
+        {
+            "google": MagicMock(),
+            "google.generativeai": MagicMock(),
+        },
+    )
+
     # Test all bot instances with different streaming responses
     with sys_modules_patcher:
         for bot in bots:
             # Test 1: With resolve() method (newer models)
             mock_resolve_response = MockResolveResponse("Hello from Gemini with resolve")
             mock_client.generate_content.return_value = mock_resolve_response
-            
+
             responses = []
-            async for response in bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+            async for response in bot._process_user_query(
+                mock_client, "Hello", sample_query_with_text
+            ):
                 responses.append(response)
-                
+
             # All bots should produce a response with the resolve path
             assert len(responses) > 0
             assert "Hello from Gemini" in responses[0].text
-            
+
             # Test 2: With async iteration (older models)
             mock_client.reset_mock()
             mock_async_response = MockAsyncResponse("Hello from Gemini async")
             mock_client.generate_content.return_value = mock_async_response
-            
+
             responses = []
-            async for response in bot._process_user_query(mock_client, "Hello async", sample_query_with_text):
+            async for response in bot._process_user_query(
+                mock_client, "Hello async", sample_query_with_text
+            ):
                 responses.append(response)
-                
+
             # Should still produce a response with the async iteration path
             assert len(responses) > 0
             assert "Hello from Gemini async" in responses[0].text
@@ -1188,9 +1409,11 @@ async def test_process_user_query_for_all_model_versions(sample_query_with_text)
 
 def test_get_client_with_valid_key():
     """Test the get_client function with a valid API key."""
-    with patch('bots.gemini.get_api_key', return_value="fake-api-key"), \
-         patch('google.generativeai.GenerativeModel') as mock_model, \
-         patch('google.generativeai.configure') as mock_configure:
+    with (
+        patch("bots.gemini.get_api_key", return_value="fake-api-key"),
+        patch("google.generativeai.GenerativeModel") as mock_model,
+        patch("google.generativeai.configure") as mock_configure,
+    ):
 
         client = get_client("gemini-2.0-pro")
 
@@ -1206,7 +1429,7 @@ def test_get_client_with_valid_key():
 
 def test_get_client_with_missing_key():
     """Test the get_client function with a missing API key."""
-    with patch('bots.gemini.get_api_key', return_value=None):
+    with patch("bots.gemini.get_api_key", return_value=None):
         client = get_client("gemini-2.0-pro")
         assert client is None
 
@@ -1217,9 +1440,11 @@ def test_get_client_with_import_error():
     mock_import_error = ImportError("No module named 'google.generativeai'")
 
     # Use patch.dict to modify sys.modules to trigger ImportError for google.generativeai
-    with patch.dict('sys.modules', {'google.generativeai': None, 'google': None}), \
-         patch('bots.gemini.get_api_key', return_value="fake-api-key"), \
-         patch('bots.gemini.GeminiClientStub') as mock_stub:
+    with (
+        patch.dict("sys.modules", {"google.generativeai": None, "google": None}),
+        patch("bots.gemini.get_api_key", return_value="fake-api-key"),
+        patch("bots.gemini.GeminiClientStub") as mock_stub,
+    ):
 
         # Set model name for verification
         mock_stub.return_value.model_name = "gemini-2.0-pro"
