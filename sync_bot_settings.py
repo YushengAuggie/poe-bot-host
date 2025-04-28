@@ -13,10 +13,11 @@ Usage:
 import argparse
 import asyncio
 import logging
+import os
 from typing import Any, Dict
 
 import httpx
-from fastapi_poe.client import get_bot_config
+from fastapi_poe import sync_bot_settings as fp_sync_bot_settings
 from fastapi_poe.types import SettingsRequest
 
 from utils.base_bot import BaseBot
@@ -53,25 +54,20 @@ async def sync_bot_via_fastapi_poe(bot_name: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        # Import here to avoid circular imports
-        import fastapi_poe as fp
+        # We need an access key to sync settings
+        access_key = os.environ.get("POE_ACCESS_KEY")
+        if not access_key:
+            # Try a bot-specific key
+            access_key = os.environ.get(f"{bot_name.upper()}_ACCESS_KEY")
 
-        # Get bot config from environment
-        config = get_bot_config()
-        if not config or not hasattr(config, "api_key") or not config.api_key:
-            logger.error("No API key found in environment")
+        if not access_key:
+            logger.error(f"No access key found for bot {bot_name}")
             return False
-
-        api_key = config.api_key
 
         # Check if the function exists
-        if hasattr(fp, "sync_bot_settings"):
-            logger.info(f"Syncing settings for {bot_name} using fastapi_poe.sync_bot_settings()")
-            fp.sync_bot_settings(bot_name=bot_name, access_key=api_key)
-            return True
-        else:
-            logger.warning("fastapi_poe.sync_bot_settings() not available")
-            return False
+        logger.info(f"Syncing settings for {bot_name} using fastapi_poe.sync_bot_settings()")
+        fp_sync_bot_settings(bot_name=bot_name, access_key=access_key)
+        return True
     except Exception as e:
         logger.error(f"Error syncing bot {bot_name} via fastapi_poe: {e}")
         return False
@@ -87,19 +83,21 @@ async def sync_bot_via_http(bot_name: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        # Get bot config from environment
-        config = get_bot_config()
-        if not config or not hasattr(config, "api_key") or not config.api_key:
-            logger.error("No API key found in environment")
-            return False
+        # We need an access key to sync settings
+        access_key = os.environ.get("POE_ACCESS_KEY")
+        if not access_key:
+            # Try a bot-specific key
+            access_key = os.environ.get(f"{bot_name.upper()}_ACCESS_KEY")
 
-        api_key = config.api_key
+        if not access_key:
+            logger.error(f"No access key found for bot {bot_name}")
+            return False
 
         # URL for the settings endpoint
         base_url = "https://api.poe.com"
-        settings_url = f"{base_url}/bot/fetch_settings/{bot_name}/{api_key}"
+        settings_url = f"{base_url}/bot/fetch_settings/{bot_name}/{access_key}"
 
-        logger.info(f"Syncing settings for {bot_name} using HTTP request to {settings_url}")
+        logger.info(f"Syncing settings for {bot_name} using HTTP request")
 
         # Make request to the settings endpoint
         async with httpx.AsyncClient() as client:
