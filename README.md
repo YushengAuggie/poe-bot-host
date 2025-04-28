@@ -83,10 +83,27 @@ google_key = get_api_key("GOOGLE_API_KEY")
 custom_key = get_api_key("CUSTOM_SERVICE_API_KEY")
 ```
 
+### Flexible Bot Access Keys
+
+Bot access keys are automatically handled through the BaseBot class:
+
+```python
+# Each bot automatically finds its access key using:
+# - BOT_NAME_ACCESS_KEY
+# - BOTNAME_ACCESS_KEY
+# - Multiple other naming formats
+
+# Just add keys to your .env file:
+# ECHO_BOT_ACCESS_KEY=psk_...your-access-key...
+# WEATHERBOT_ACCESS_KEY=psk_...your-access-key...
+# GEMINI_2_5_FLASH_ACCESS_KEY=psk_...your-access-key...
+```
+
 ### How It Works
 1. First checks environment variables (for local development)
 2. Then checks Modal secrets (for cloud deployment)
-3. Raises clear error messages if keys aren't found
+3. For bot access keys, tries multiple naming conventions automatically
+4. Raises clear error messages if keys aren't found
 
 ### Example Bot Integration
 ```python
@@ -99,7 +116,7 @@ def get_client():
         return None
 ```
 
-See [API Key Management Guide](examples/api_key_management.md) for complete documentation.
+See [API Key Management Guide](API_KEY_MANAGEMENT.md) for complete documentation.
 
 ## 🛠️ Development Workflow
 
