@@ -13,6 +13,7 @@ poe_bots/
 │   └── ...            # 其他特色机器人
 ├── 📘 examples/       # 示例代码和指南
 ├── 🧪 tests/          # 全面的测试套件
+├── 🔄 sync_bot_settings.py # 同步机器人设置到 Poe 的工具
 └── 🛠️ utils/          # 核心工具
     ├── api_keys.py    # API 密钥管理
     ├── base_bot.py    # 基础机器人架构
@@ -66,7 +67,9 @@ Poe Bot Host 由以下主要组件组织：
 
 ## 🔌 简化的 API 密钥管理
 
-本框架提供了一种简化的 API 密钥管理系统，用于与外部服务集成：
+本框架为开发和生产环境提供了简化的 API 密钥管理：
+
+### 1️⃣ 第三方 API 密钥（如 OpenAI、Google）
 
 ```python
 from utils.api_keys import get_api_key
@@ -74,26 +77,97 @@ from utils.api_keys import get_api_key
 # 从环境变量或 Modal 密钥获取 API 密钥
 openai_key = get_api_key("OPENAI_API_KEY")
 google_key = get_api_key("GOOGLE_API_KEY")
-custom_key = get_api_key("CUSTOM_SERVICE_API_KEY")
 ```
 
-### 工作原理
-1. 首先检查环境变量（用于本地开发）
-2. 然后检查 Modal 密钥（用于云部署）
-3. 如果找不到密钥，则引发清晰的错误消息
+### 2️⃣ 机器人特定访问密钥
 
-### 机器人集成示例
+Poe 上的每个机器人都需要自己的访问密钥，您可以从机器人的设置页面获取：
+
+1. 访问 [creator.poe.com](https://creator.poe.com/)
+2. 点击您的机器人
+3. 转到"API"选项卡
+4. 复制访问密钥（以"psk_..."开头）
+
+### 🔑 设置访问密钥
+
+#### 步骤 1：创建 .env 文件
+在项目根目录创建一个包含访问密钥的 `.env` 文件：
+
+```
+# .env 文件示例
+OPENAI_API_KEY=sk-...您的openai密钥...
+GOOGLE_API_KEY=AIza...您的google密钥...
+
+# 机器人特定访问密钥（从 Poe 创建者仪表板获取）
+ECHO_BOT_ACCESS_KEY=psk_...您的访问密钥...
+WEATHER_BOT_ACCESS_KEY=psk_...您的访问密钥...
+GEMINI_BOT_ACCESS_KEY=psk_...您的访问密钥...
+```
+
+#### 步骤 2：在应用中加载 .env 文件
 ```python
-# 在您的机器人实现中
-def get_client():
-    try:
-        return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
-    except Exception as e:
-        logger.warning(f"初始化客户端失败：{str(e)}")
-        return None
+# 在 run_local.py 或您的主脚本顶部
+import os
+from dotenv import load_dotenv
+
+# 从 .env 文件加载环境变量
+load_dotenv()
 ```
 
-查看[API 密钥管理指南](examples/api_key_management.md)获取完整文档。
+#### 步骤 3：就是这样！机器人会自动查找它们的密钥
+
+```python
+# BaseBot 类自动查找适当的密钥
+# 添加新机器人时无需修改任何代码！
+
+# 内部工作原理示例：
+bot = EchoBot()  # 机器人查找 ECHO_BOT_ACCESS_KEY
+bot = WeatherBot()  # 机器人查找 WEATHER_BOT_ACCESS_KEY
+bot = GeminiBot()  # 机器人查找 GEMINI_BOT_ACCESS_KEY
+```
+
+### ✨ 灵活的命名约定
+
+您的机器人访问密钥可以使用以下任何格式（所有格式都有效）：
+
+```
+# 对于名为 "WeatherBot" 的机器人：
+WEATHERBOT_ACCESS_KEY=psk_...
+WEATHER_BOT_ACCESS_KEY=psk_...
+WeatherBot_ACCESS_KEY=psk_...
+
+# 对于名为 "Gemini-2.5-Flash" 的机器人：
+GEMINI_2_5_FLASH_ACCESS_KEY=psk_...
+GEMINI25FLASH_ACCESS_KEY=psk_...
+GEMINI_25_FLASH_ACCESS_KEY=psk_...
+```
+
+### 🚀 生产环境（Modal 部署）
+
+对于 Modal，创建具有相同名称的密钥：
+
+```bash
+# 在 Modal 中创建密钥
+modal secret create OPENAI_API_KEY "sk-...您的密钥..."
+modal secret create WEATHER_BOT_ACCESS_KEY "psk_...您的密钥..."
+```
+
+### 🔄 同步机器人设置
+
+设置好机器人访问密钥后，您可以同步机器人设置与 Poe：
+
+```bash
+# 同步特定机器人
+python sync_bot_settings.py --bot WeatherBot
+
+# 同步 .env 中具有访问密钥的所有机器人
+python sync_bot_settings.py --all
+
+# 调试模式获取详细日志
+python sync_bot_settings.py --bot WeatherBot -v
+```
+
+查看[API 密钥管理指南](API_KEY_MANAGEMENT.md)获取完整文档。
 
 ## 🛠️ 开发工作流程
 

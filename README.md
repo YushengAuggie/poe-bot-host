@@ -70,9 +70,11 @@ The Poe Bot Host is organized into these main components:
 - **Advanced Bots**: BotCaller, Weather, WebSearch
 - **Functional Bots**: Calculator, FunctionCalling, FileAnalyzer
 
-## 🔌 Simplified API Key Management
+## 🔌 API Key Management Made Easy
 
-This framework provides a streamlined approach to API key management for both local development and cloud deployment:
+This framework simplifies API key management for both development and production:
+
+### 1️⃣ Third-Party API Keys (like OpenAI, Google)
 
 ```python
 from utils.api_keys import get_api_key
@@ -80,40 +82,94 @@ from utils.api_keys import get_api_key
 # Get API keys from environment or Modal secrets
 openai_key = get_api_key("OPENAI_API_KEY")
 google_key = get_api_key("GOOGLE_API_KEY")
-custom_key = get_api_key("CUSTOM_SERVICE_API_KEY")
 ```
 
-### Flexible Bot Access Keys
+### 2️⃣ Bot-Specific Access Keys
 
-Bot access keys are automatically handled through the BaseBot class:
+Each bot on Poe requires its own access key, which you can get from your bot's settings page on Poe:
 
-```python
-# Each bot automatically finds its access key using:
-# - BOT_NAME_ACCESS_KEY
-# - BOTNAME_ACCESS_KEY
-# - Multiple other naming formats
+1. Go to [creator.poe.com](https://creator.poe.com/)
+2. Click on your bot
+3. Go to the "API" tab
+4. Copy the access key (starts with "psk_...")
 
-# Just add keys to your .env file:
-# ECHO_BOT_ACCESS_KEY=psk_...your-access-key...
-# WEATHERBOT_ACCESS_KEY=psk_...your-access-key...
-# GEMINI_2_5_FLASH_ACCESS_KEY=psk_...your-access-key...
+### 🔑 Setting Up Access Keys
+
+#### Step 1: Create a .env file
+Create a `.env` file in your project root with your access keys:
+
+```
+# .env file example
+OPENAI_API_KEY=sk-...your-openai-key...
+GOOGLE_API_KEY=AIza...your-google-key...
+
+# Bot-specific access keys (from Poe creator dashboard)
+ECHO_BOT_ACCESS_KEY=psk_...your-access-key...
+WEATHER_BOT_ACCESS_KEY=psk_...your-access-key...
+GEMINI_BOT_ACCESS_KEY=psk_...your-access-key...
 ```
 
-### How It Works
-1. First checks environment variables (for local development)
-2. Then checks Modal secrets (for cloud deployment)
-3. For bot access keys, tries multiple naming conventions automatically
-4. Raises clear error messages if keys aren't found
-
-### Example Bot Integration
+#### Step 2: Load the .env file in your app
 ```python
-# In your bot implementation
-def get_client():
-    try:
-        return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
-    except Exception as e:
-        logger.warning(f"Failed to initialize client: {str(e)}")
-        return None
+# At the top of run_local.py or your main script
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+```
+
+#### Step 3: That's it! Bots automatically find their keys
+
+```python
+# The BaseBot class automatically looks up the appropriate key
+# No need to modify any code when adding new bots!
+
+# Example of how it works internally:
+bot = EchoBot()  # Bot looks for ECHO_BOT_ACCESS_KEY
+bot = WeatherBot()  # Bot looks for WEATHER_BOT_ACCESS_KEY
+bot = GeminiBot()  # Bot looks for GEMINI_BOT_ACCESS_KEY
+```
+
+### ✨ Flexible Naming Conventions
+
+Your bot access keys can use any of these formats (all will work):
+
+```
+# For a bot named "WeatherBot":
+WEATHERBOT_ACCESS_KEY=psk_...
+WEATHER_BOT_ACCESS_KEY=psk_...
+WeatherBot_ACCESS_KEY=psk_...
+
+# For a bot named "Gemini-2.5-Flash":
+GEMINI_2_5_FLASH_ACCESS_KEY=psk_...
+GEMINI25FLASH_ACCESS_KEY=psk_...
+GEMINI_25_FLASH_ACCESS_KEY=psk_...
+```
+
+### 🚀 For Production (Modal Deployment)
+
+For Modal, create secrets with the same names:
+
+```bash
+# Create secrets in Modal
+modal secret create OPENAI_API_KEY "sk-...your-key..."
+modal secret create WEATHER_BOT_ACCESS_KEY "psk_...your-key..."
+```
+
+### 🔄 Syncing Bot Settings
+
+Once your bot access keys are set up, you can sync bot settings with Poe:
+
+```bash
+# Sync a specific bot
+python sync_bot_settings.py --bot WeatherBot
+
+# Sync all bots that have access keys in your .env
+python sync_bot_settings.py --all
+
+# Verbose mode for debugging
+python sync_bot_settings.py --bot WeatherBot -v
 ```
 
 See [API Key Management Guide](API_KEY_MANAGEMENT.md) for complete documentation.
