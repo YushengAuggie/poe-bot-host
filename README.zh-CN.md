@@ -372,12 +372,18 @@ class ConfigurableBot(BaseBot):
     stream_response = False    # 禁用流式响应
 
     # 您也可以添加自己的设置
-    api_key = "default-key"   # 自定义设置
+    # 对于特定服务的 API 密钥（例如 OpenAI、Google）
+    openai_api_key = None     # 将从环境中填充
 
     def __init__(self, **kwargs):
         # 使用环境变量或 kwargs 初始化
+        # 机器人的 Poe 访问密钥由 BaseBot.get_access_key() 自动处理
+        
+        # 对于其他服务 API 密钥，使用 get_api_key 工具
+        from utils.api_keys import get_api_key
+        
         settings = {
-            "api_key": os.environ.get("MY_BOT_API_KEY", self.api_key)
+            "openai_api_key": get_api_key("OPENAI_API_KEY")
         }
         super().__init__(settings=settings, **kwargs)
 ```

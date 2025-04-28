@@ -378,12 +378,18 @@ class ConfigurableBot(BaseBot):
     stream_response = False    # Disable streaming
 
     # You can add your own settings too
-    api_key = "default-key"   # Custom setting
+    # For service-specific API keys (e.g., OpenAI, Google)
+    openai_api_key = None     # Will be populated from environment
 
     def __init__(self, **kwargs):
         # Initialize with settings from environment or kwargs
+        # The bot's Poe access key is automatically handled by BaseBot.get_access_key()
+        
+        # For other service API keys, use get_api_key utility
+        from utils.api_keys import get_api_key
+        
         settings = {
-            "api_key": os.environ.get("MY_BOT_API_KEY", self.api_key)
+            "openai_api_key": get_api_key("OPENAI_API_KEY")
         }
         super().__init__(settings=settings, **kwargs)
 ```
