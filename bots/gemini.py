@@ -193,35 +193,54 @@ class GeminiBaseBot(BaseBot):
 
         return contents
 
-    async def _process_streaming_response(self, response_stream) -> AsyncGenerator[PartialResponse, None]:
+    async def _process_streaming_response(self, response) -> AsyncGenerator[PartialResponse, None]:
         """Process a streaming text response from Gemini.
 
         Args:
-            response_stream: The streaming response from Gemini API
+            response: The response from Gemini API (streaming or not)
 
         Yields:
             Response chunks as PartialResponse objects
         """
         try:
-            # Simple and consistent approach: extract the text directly from the response
-            # if it's not a streaming response
-            if hasattr(response_stream, "text"):
-                yield PartialResponse(text=response_stream.text)
+            # Non-streaming case: If response has text attribute directly and isn't an iterable
+            if hasattr(response, "text") and not hasattr(response, "__iter__"):
+                logger.debug("Processing direct text response")
+                yield PartialResponse(text=response.text)
                 return
+            
+            # We need to adapt our approach based on whether this is a Gemini 2.5 model
+            # Gemini 2.5 models use an iterator that requires special handling
+            logger.debug(f"Processing streaming response of type {type(response)}")
+            
+            # Use the stdlib list() to safely collect the entire iterator's contents
+            # This is specifically needed for Gemini 2.5 models which lack __aiter__
+            # We're forced to collect all chunks first since we can't iterate twice
+            try:
+                logger.debug("Collecting all chunks from iterator")
+                chunks = list(response)
+                logger.debug(f"Collected {len(chunks)} chunks")
                 
-            # For compatibility with older Gemini versions, handle parts if present
-            if hasattr(response_stream, "parts"):
-                for part in response_stream.parts:
-                    if hasattr(part, "text") and part.text:
-                        yield PartialResponse(text=part.text)
-                return
-                
-            # If it's a string or other simple type, just convert to string
-            yield PartialResponse(text=str(response_stream))
-                
+                # Now yield each chunk as a separate response to simulate streaming
+                for chunk in chunks:
+                    if hasattr(chunk, "text") and chunk.text:
+                        yield PartialResponse(text=chunk.text)
+                    elif hasattr(chunk, "parts") and chunk.parts:
+                        for part in chunk.parts:
+                            if hasattr(part, "text") and part.text:
+                                yield PartialResponse(text=part.text)
+            except Exception as iter_err:
+                logger.warning(f"Error during iteration: {str(iter_err)}")
+                # If iteration fails but response has text, use that
+                if hasattr(response, "text") and response.text:
+                    yield PartialResponse(text=response.text)
+                else:
+                    # Re-raise to be caught by outer exception handler
+                    raise
+                    
         except Exception as e:
-            logger.error(f"Error streaming from Gemini API: {str(e)}")
-            yield PartialResponse(text=f"Error streaming from Gemini: {str(e)}")
+            logger.error(f"Error processing Gemini response: {str(e)}")
+            yield PartialResponse(text=f"Error: Could not process Gemini response: {str(e)}")
 
     async def _resize_image_if_needed(self, image_data: bytes, max_size_bytes: int = 1024 * 1024) -> bytes:
         """Resize an image if it exceeds the specified size limit.
@@ -426,19 +445,51 @@ class GeminiBaseBot(BaseBot):
                 # Direct import used to verify the package is installed
                 _ = __import__('google.generativeai')
 
-                # Simplified approach: don't use streaming to avoid compatibility issues
-                logger.debug(f"Using non-streaming mode for all Gemini models")
                 try:
-                    # Generate content without streaming
-                    response = client.generate_content(contents, stream=False)
+                    # Use streaming when communicating with Gemini API
+                    logger.info(f"Using streaming mode for model: {self.model_name}")
+                    logger.debug(f"Contents: {contents}")
                     
-                    # Extract the text using our simplified helper
+                    # Make the API call with streaming enabled
+                    response = client.generate_content(contents, stream=True)
+                    
+                    # Process the response with our robust handler
+                    logger.debug(f"Processing response of type: {type(response)}")
                     async for partial_response in self._process_streaming_response(response):
                         yield partial_response
                         
                 except Exception as e:
-                    logger.error(f"Error calling Gemini API: {str(e)}")
-                    yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
+                    if "'async for' requires an object with __aiter__ method" in str(e):
+                        # This is the specific error we're trying to fix
+                        logger.warning("Detected missing __aiter__ method error, using fallback method")
+                        try:
+                            # Make a new API call and process it differently
+                            response = client.generate_content(contents, stream=True)
+                            # Just collect the complete response synchronously
+                            all_text = ""
+                            for chunk in response:
+                                if hasattr(chunk, "text") and chunk.text:
+                                    all_text += chunk.text
+                                    # Yield each piece as we get it for simulated streaming
+                                    yield PartialResponse(text=chunk.text)
+                            
+                            # If we somehow didn't get any text, try non-streaming
+                            if not all_text:
+                                logger.warning("No text in chunks, falling back to non-streaming")
+                                response = client.generate_content(contents, stream=False)
+                                yield PartialResponse(text=response.text)
+                        except Exception as e2:
+                            logger.error(f"Fallback also failed: {str(e2)}")
+                            yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e2)}")
+                    else:
+                        # For other types of errors, try non-streaming as fallback
+                        logger.warning(f"Error with streaming: {str(e)}, falling back to non-streaming")
+                        try:
+                            response = client.generate_content(contents, stream=False)
+                            yield PartialResponse(text=response.text)
+                        except Exception as e2:
+                            logger.error(f"Both streaming and non-streaming failed: {str(e2)}")
+                            yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e2)}")
             except ImportError:
                 # Fall back if imports fail
                 logger.warning("Failed to import google.generativeai")
@@ -523,6 +574,56 @@ class Gemini25FlashBot(GeminiBaseBot):
     bot_description = (
         "Advanced Gemini 2.5 Flash Preview model for adaptive thinking and cost efficiency."
     )
+    
+    async def _process_user_query(self, client, user_message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Special implementation for Gemini 2.5 Flash Preview model to handle streaming correctly.
+        
+        This model requires a different approach to handle streaming properly.
+        """
+        # Process any image attachments
+        attachments = self._extract_attachments(query)
+        image_parts = self._prepare_image_parts(attachments)
+        contents = self._prepare_content(user_message, image_parts)
+        
+        # Process the response appropriately
+        if image_parts:
+            # For multimodal content, use the parent implementation
+            async for partial_response in super()._process_user_query(client, user_message, query):
+                yield partial_response
+        else:
+            # For text-only, implement direct handling of streaming with this model
+            try:
+                logger.info("Using special handling for Gemini25FlashBot streaming")
+                
+                # Make API call with streaming enabled
+                response = client.generate_content(contents, stream=True)
+                
+                # Use synchronous iteration to collect all chunks
+                all_text = ""
+                chunks = []
+                
+                try:
+                    # Get all chunks synchronously
+                    for chunk in response:
+                        if hasattr(chunk, "text") and chunk.text:
+                            chunks.append(chunk.text)
+                    
+                    # Yield each chunk separately to simulate streaming behavior
+                    for chunk_text in chunks:
+                        yield PartialResponse(text=chunk_text)
+                    
+                except Exception as e:
+                    logger.warning(f"Error streaming from Gemini 2.5 Flash Preview: {str(e)}")
+                    # Fall back to non-streaming
+                    non_stream_response = client.generate_content(contents, stream=False)
+                    if hasattr(non_stream_response, "text") and non_stream_response.text:
+                        yield PartialResponse(text=non_stream_response.text)
+                    else:
+                        yield PartialResponse(text="Error: Could not get response from Gemini")
+            
+            except Exception as e:
+                logger.error(f"Error with Gemini 2.5 Flash Preview: {str(e)}")
+                yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
 
 
 class Gemini25ProExpBot(GeminiBaseBot):
@@ -531,6 +632,56 @@ class Gemini25ProExpBot(GeminiBaseBot):
     model_name = "gemini-2.5-pro-exp-03-25"
     bot_name = "Gemini25ProExpBot"
     bot_description = "Premium Gemini 2.5 Pro Experimental model for enhanced reasoning, multimodal understanding, and advanced coding."
+    
+    async def _process_user_query(self, client, user_message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Special implementation for Gemini 2.5 Pro Experimental model to handle streaming correctly.
+        
+        This model requires a different approach to handle streaming properly.
+        """
+        # Process any image attachments
+        attachments = self._extract_attachments(query)
+        image_parts = self._prepare_image_parts(attachments)
+        contents = self._prepare_content(user_message, image_parts)
+        
+        # Process the response appropriately
+        if image_parts:
+            # For multimodal content, use the parent implementation
+            async for partial_response in super()._process_user_query(client, user_message, query):
+                yield partial_response
+        else:
+            # For text-only, implement direct handling of streaming with this model
+            try:
+                logger.info("Using special handling for Gemini25ProExpBot streaming")
+                
+                # Make API call with streaming enabled
+                response = client.generate_content(contents, stream=True)
+                
+                # Use synchronous iteration to collect all chunks
+                all_text = ""
+                chunks = []
+                
+                try:
+                    # Get all chunks synchronously
+                    for chunk in response:
+                        if hasattr(chunk, "text") and chunk.text:
+                            chunks.append(chunk.text)
+                    
+                    # Yield each chunk separately to simulate streaming behavior
+                    for chunk_text in chunks:
+                        yield PartialResponse(text=chunk_text)
+                    
+                except Exception as e:
+                    logger.warning(f"Error streaming from Gemini 2.5 Pro Exp: {str(e)}")
+                    # Fall back to non-streaming
+                    non_stream_response = client.generate_content(contents, stream=False)
+                    if hasattr(non_stream_response, "text") and non_stream_response.text:
+                        yield PartialResponse(text=non_stream_response.text)
+                    else:
+                        yield PartialResponse(text="Error: Could not get response from Gemini")
+            
+            except Exception as e:
+                logger.error(f"Error with Gemini 2.5 Pro Exp: {str(e)}")
+                yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
 
 
 # Experimental Models
