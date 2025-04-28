@@ -93,26 +93,6 @@ class GeminiBaseBot(BaseBot):
         super().__init__(**kwargs)
         self.supported_image_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 
-    async def get_settings(self, settings_request):
-        """Get bot settings.
-
-        Override to explicitly enable attachments for image uploads.
-
-        Args:
-            settings_request: The settings request
-
-        Returns:
-            Settings response with attachments enabled
-        """
-        # Get settings from parent class
-        settings = await super().get_settings(settings_request)
-
-        # Explicitly set attachment settings
-        settings.allow_attachments = True
-        settings.expand_text_attachments = True
-
-        return settings
-
     def _extract_attachments(self, query: QueryRequest) -> list:
         """Extract attachments from the query.
 

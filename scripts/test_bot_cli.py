@@ -39,7 +39,6 @@ import requests
 # Add the project root to path so utils module can be found
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Local imports
 from utils.config import settings
 
 # Set up logger
@@ -116,14 +115,16 @@ def test_bot_api(
     bot_name: str = "EchoBot",
     message: str = "Test message",
     api_key: Optional[str] = None,
+    attachment_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Test a bot with a sample message.
+    """Test a bot with a sample message and optional attachment.
 
     Args:
         base_url: Base URL of the API
         bot_name: Name of the bot to test
         message: Message to send to the bot
         api_key: Optional API key to use
+        attachment_path: Optional path to image file to attach
 
     Returns:
         Bot response
@@ -146,13 +147,51 @@ def test_bot_api(
         logger.debug(f"Testing bot at URL: {url}")
         logger.debug(f"Headers: {headers}")
 
+        # Prepare the request body
+        query_message = {"role": "user", "content": message}
+
+        # Add attachment if specified
+        if attachment_path:
+            try:
+                # Get file type from extension
+                import mimetypes
+                content_type, _ = mimetypes.guess_type(attachment_path)
+                if not content_type:
+                    content_type = "application/octet-stream"
+
+                # Read file contents
+                with open(attachment_path, "rb") as f:
+                    file_content = f.read()
+
+                # Encode binary data as base64 for JSON transport
+                import base64
+                file_content_b64 = base64.b64encode(file_content).decode('utf-8')
+
+                # Get filename
+                import os
+                filename = os.path.basename(attachment_path)
+
+                # Add attachment to message
+                query_message["attachments"] = [
+                    {
+                        "url": f"file://{filename}",  # Dummy URL, not used by server
+                        "name": filename,
+                        "content_type": content_type,
+                        "content": file_content_b64
+                    }
+                ]
+                logger.debug(f"Added attachment: {filename} ({content_type})")
+            except Exception as e:
+                logger.error(f"Error adding attachment: {str(e)}")
+                return {"status_code": 0, "error": f"Error adding attachment: {str(e)}", "content": None, "content_type": "error"}
+
         response = requests.post(
             url,
             headers=headers,
             json={
                 "version": "1.0",
                 "type": "query",
-                "query": [{"role": "user", "content": message}],
+                "query": [query_message],
                 "user_id": "test_user",
                 "conversation_id": "test_convo_123",
                 "message_id": "test_msg_123",
@@ -224,6 +263,7 @@ def main():
     )
     parser.add_argument("--bot", help="Specific bot to test (omit for auto-select)")
     parser.add_argument("--message", default="Hello, world!", help="Message to send to the bot")
+    parser.add_argument("--attachment", help="Path to image file to attach to the message")
     parser.add_argument("--schema", action="store_true", help="Show OpenAPI schema")
     parser.add_argument("--health", action="store_true", help="Show health check")
     parser.add_argument("--all", action="store_true", help="Test all available bots")
@@ -312,7 +352,7 @@ def main():
                 print(f"\nTesting bot: {bot}")
                 print(f"Message: {args.message}")
 
-            result = test_bot_api(base_url, bot, args.message)
+            result = test_bot_api(base_url, bot, args.message, attachment_path=args.attachment)
             results[bot] = result
 
             if args.format == "text":
@@ -344,7 +384,7 @@ def main():
                 print(f"\nTesting bot: {bot_to_test}")
                 print(f"Message: {args.message}")
 
-            result = test_bot_api(base_url, bot_to_test, args.message)
+            result = test_bot_api(base_url, bot_to_test, args.message, attachment_path=args.attachment)
 
             if args.format == "json":
                 print(json.dumps({"result": result}, indent=2))
