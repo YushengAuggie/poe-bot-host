@@ -13,6 +13,7 @@ poe_bots/
 │   └── ...            # Many other specialty bots
 ├── 📘 examples/       # Example code and guides
 ├── 🧪 tests/          # Comprehensive test suite
+├── 🔄 sync_bot_settings.py # Tool to sync bot settings with Poe
 └── 🛠️ utils/          # Core utilities
     ├── api_keys.py    # API key management
     ├── base_bot.py    # Base bot architecture
@@ -469,6 +470,21 @@ If you encounter issues with your deployment:
 4. **Deployment Failures**:
    - Check your requirements.txt for compatible packages
    - Ensure your code doesn't have any syntax errors or import issues
+
+5. **Bot Settings Sync Issues**:
+   - If you've modified bot settings (like enabling attachments) but Poe isn't recognizing the changes
+   - Use the sync_bot_settings.py tool to manually sync your bot settings with Poe:
+     ```bash
+     # Sync all bots
+     python sync_bot_settings.py --all
+
+     # Sync a specific bot
+     python sync_bot_settings.py --bot YourBotName
+
+     # Verbose mode for more detailed logs
+     python sync_bot_settings.py --bot YourBotName --verbose
+     ```
+   - This is especially useful for settings like `allow_attachments` which may be cached by Poe
 
 ### Updating Your Deployment
 
