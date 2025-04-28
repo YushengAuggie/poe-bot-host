@@ -12,14 +12,20 @@ For local development, you can set API keys as environment variables:
 # For bash/zsh
 export OPENAI_API_KEY="your-openai-key"
 export GOOGLE_API_KEY="your-google-key"
+export POE_ACCESS_KEY="your-poe-access-key"
+export POE_API_KEY="your-poe-api-key"  # Get this from https://poe.com/api_key
 
 # For Windows Command Prompt
 set OPENAI_API_KEY=your-openai-key
 set GOOGLE_API_KEY=your-google-key
+set POE_ACCESS_KEY=your-poe-access-key
+set POE_API_KEY=your-poe-api-key
 
 # For PowerShell
 $env:OPENAI_API_KEY="your-openai-key"
 $env:GOOGLE_API_KEY="your-google-key"
+$env:POE_ACCESS_KEY="your-poe-access-key"
+$env:POE_API_KEY="your-poe-api-key"
 ```
 
 Alternatively, create a `.env` file in the project root (don't commit this file):
@@ -27,6 +33,8 @@ Alternatively, create a `.env` file in the project root (don't commit this file)
 ```bash
 OPENAI_API_KEY=your-openai-key
 GOOGLE_API_KEY=your-google-key
+POE_ACCESS_KEY=your-poe-access-key
+POE_API_KEY=your-poe-api-key
 ```
 
 ### Modal Deployment
@@ -37,6 +45,8 @@ For Modal deployment, create secrets with the same name as your environment vari
 # Create secrets in Modal
 modal secret create OPENAI_API_KEY "your-openai-key"
 modal secret create GOOGLE_API_KEY "your-google-key"
+modal secret create POE_ACCESS_KEY "your-poe-access-key"
+modal secret create POE_API_KEY "your-poe-api-key"  # Get this from https://poe.com/api_key
 ```
 
 ## How API Key Management Works
@@ -91,7 +101,7 @@ from utils.api_keys import get_api_key
 def initialize_client():
     # Get the API key
     api_key = get_api_key("OPENAI_API_KEY")
-    
+
     # Initialize your client with the API key
     client = YourAPIClient(api_key=api_key)
     return client
