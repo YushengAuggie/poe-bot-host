@@ -2,6 +2,23 @@
 
 This guide explains how to manage API keys for your Poe bots, especially when deploying to Modal.
 
+## Preventing Secret Leaks
+
+This repository uses pre-commit hooks to prevent accidentally committing secrets:
+
+1. Install pre-commit:
+   ```bash
+   pip install pre-commit
+   pre-commit install
+   ```
+
+2. The pre-commit hooks will automatically:
+   - Detect private keys
+   - Detect AWS credentials
+   - Run Gitleaks to scan for other sensitive data patterns
+
+If a commit is blocked due to potential secrets, carefully review the output and remove any sensitive information before committing again.
+
 ## API Key Setup
 
 ### Local Development
