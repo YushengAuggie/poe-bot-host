@@ -115,10 +115,12 @@ class GeminiBaseBot(BaseBot):
 
             # Debug attachment details
             for i, attachment in enumerate(attachments):
-                logger.debug(f"Attachment {i}: type={getattr(attachment, 'content_type', 'unknown')}")
-                if hasattr(attachment, 'url'):
+                logger.debug(
+                    f"Attachment {i}: type={getattr(attachment, 'content_type', 'unknown')}"
+                )
+                if hasattr(attachment, "url"):
                     logger.debug(f"Attachment {i} URL: {attachment.url}")
-                if hasattr(attachment, 'content'):
+                if hasattr(attachment, "content"):
                     content_size = len(attachment.content) if attachment.content else 0
                     logger.debug(f"Attachment {i} content size: {content_size} bytes")
 
@@ -146,10 +148,10 @@ class GeminiBaseBot(BaseBot):
         is_supported_image = content_type in self.supported_image_types
         is_supported_video = content_type in self.supported_video_types
 
-        if not hasattr(attachment, "content_type") or (not is_supported_image and not is_supported_video):
-            logger.warning(
-                f"Unsupported attachment type: {content_type}"
-            )
+        if not hasattr(attachment, "content_type") or (
+            not is_supported_image and not is_supported_video
+        ):
+            logger.warning(f"Unsupported attachment type: {content_type}")
             return None
 
         # Access content via __dict__ to satisfy type checker (content is added by Poe but not in type definition)
@@ -159,6 +161,7 @@ class GeminiBaseBot(BaseBot):
         elif hasattr(attachment, "url") and attachment.url:
             try:
                 import requests
+
                 response = requests.get(attachment.url, timeout=20)  # Longer timeout for video
                 if response.status_code == 200:
                     return {"mime_type": content_type, "data": response.content}
@@ -218,6 +221,18 @@ class GeminiBaseBot(BaseBot):
 
         return media_parts
 
+    # For backward compatibility with tests
+    def _prepare_image_parts(self, attachments: list) -> list:
+        """Alias for _prepare_media_parts for backward compatibility with tests.
+
+        Args:
+            attachments: List of attachments from the query
+
+        Returns:
+            List of image parts formatted for Gemini API
+        """
+        return self._prepare_media_parts(attachments)
+
     def _format_chat_history(self, query: QueryRequest) -> list[dict[str, object]]:
         """Extract and format chat history from the query for Gemini API.
 
@@ -241,7 +256,9 @@ class GeminiBaseBot(BaseBot):
             role = (
                 "user"
                 if message.role == "user"
-                else "model" if message.role in ["bot", "assistant"] else None
+                else "model"
+                if message.role in ["bot", "assistant"]
+                else None
             )
 
             # Skip messages with unsupported roles
@@ -413,10 +430,14 @@ class GeminiBaseBot(BaseBot):
             Response with media display information
         """
         # Check media size for performance reasons
-        max_media_size = 50 * 1024 * 1024 if is_video else 10 * 1024 * 1024  # 50MB for video, 10MB for images
+        max_media_size = (
+            50 * 1024 * 1024 if is_video else 10 * 1024 * 1024
+        )  # 50MB for video, 10MB for images
         if len(media_data) > max_media_size:
             logger.warning(f"Media too large ({len(media_data)} bytes), skipping")
-            return PartialResponse(text=f"[{'Video' if is_video else 'Image'} too large to display]")
+            return PartialResponse(
+                text=f"[{'Video' if is_video else 'Image'} too large to display]"
+            )
 
         # Determine file extension
         if is_video:
@@ -440,7 +461,9 @@ class GeminiBaseBot(BaseBot):
                 or not attachment_upload_response.inline_ref
             ):
                 logger.error("Error uploading media: No inline_ref in response")
-                return PartialResponse(text=f"[Error uploading {'video' if is_video else 'image'} to Poe]")
+                return PartialResponse(
+                    text=f"[Error uploading {'video' if is_video else 'image'} to Poe]"
+                )
 
             # Create markdown with the official Poe attachment reference
             # For videos we don't use an exclamation mark

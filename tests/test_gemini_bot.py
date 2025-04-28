@@ -950,7 +950,6 @@ async def test_fallback_to_non_streaming(gemini_base_bot, sample_query_with_text
         patch.object(gemini_base_bot, "_extract_attachments", return_value=[]),
         patch.object(gemini_base_bot, "_prepare_image_parts", return_value=[]),
     ):
-
         responses = []
         async for response in gemini_base_bot._process_user_query(
             mock_client, "Hello", sample_query_with_text
@@ -1020,21 +1019,32 @@ async def test_process_user_query_helper(
     assert "Streaming text response" in responses[0].text
 
     # Test 2: Image content should use non-streaming
-    mock_client.reset_mock()
+    # Create a new mock client for the second test to avoid reusing state
+    mock_client = MagicMock()
+
+    # Set up a mock image response
+    mock_image_response = MagicMock(text="Image response")
+    mock_client.generate_content.return_value = mock_image_response
+
+    # Create a generator for multimodal content that will be yielded
+    async def mock_multimodal_generator(*args, **kwargs):
+        yield PartialResponse(text="Image response")
 
     # Mock image processing
     with (
         patch.object(gemini_base_bot, "_extract_attachments", return_value=["mock_image"]),
         patch.object(
             gemini_base_bot,
-            "_prepare_image_parts",
+            "_prepare_media_parts",
             return_value=[{"mime_type": "image/jpeg", "data": b"fake-image"}],
         ),
         patch.object(
             gemini_base_bot,
             "_process_multimodal_content",
-            new=lambda *args, **kwargs: async_generator(PartialResponse(text="Image response")),
+            side_effect=mock_multimodal_generator,
         ),
+        # Reset the sys.modules patch
+        sys_modules_patcher,
     ):
         # For image queries
         responses = []
@@ -1134,7 +1144,6 @@ async def test_image_resize_fallback(gemini_bot, sample_query_with_text):
         patch("PIL.Image.open", return_value=mock_image),
         patch("io.BytesIO", return_value=mock_buffer),
     ):
-
         responses = []
         async for response in gemini_bot.get_response(sample_query_with_text):
             responses.append(response)
@@ -1333,23 +1342,36 @@ async def test_process_user_query(gemini_bot, sample_query_with_text, sample_que
     assert mock_client.generate_content.called
     assert mock_client.generate_content.call_args[1].get("stream") is True
 
-    # Reset the mock
-    mock_client.reset_mock()
+    # Create a new mock client for the image test
+    mock_client2 = MagicMock()
 
     # Test multimodal query with image
     # Mock for image handling
     mock_response = MagicMock(text="I see an image")
-    mock_client.generate_content.return_value = mock_response
+    mock_client2.generate_content.return_value = mock_response
+
+    # Create mock async generator for multimodal content
+    async def mock_multimodal_generator(*args, **kwargs):
+        yield PartialResponse(text="I see an image")
 
     # Mock the attachments processing to return an image part
-    with patch.object(
-        gemini_bot,
-        "_prepare_image_parts",
-        return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}],
+    with (
+        patch.object(gemini_bot, "_extract_attachments", return_value=["mock_image"]),
+        patch.object(
+            gemini_bot,
+            "_prepare_media_parts",
+            return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}],
+        ),
+        patch.object(
+            gemini_bot,
+            "_process_multimodal_content",
+            side_effect=mock_multimodal_generator,
+        ),
+        sys_modules_patcher,
     ):
         responses = []
         async for response in gemini_bot._process_user_query(
-            mock_client, "What's in this image?", sample_query_with_image
+            mock_client2, "What's in this image?", sample_query_with_image
         ):
             responses.append(response)
 
@@ -1453,7 +1475,6 @@ def test_get_client_with_valid_key():
         patch("google.generativeai.GenerativeModel") as mock_model,
         patch("google.generativeai.configure") as mock_configure,
     ):
-
         client = get_client("gemini-2.0-pro")
 
         # Verify API key was configured
@@ -1484,7 +1505,6 @@ def test_get_client_with_import_error():
         patch("bots.gemini.get_api_key", return_value="fake-api-key"),
         patch("bots.gemini.GeminiClientStub") as mock_stub,
     ):
-
         # Set model name for verification
         mock_stub.return_value.model_name = "gemini-2.0-pro"
 
