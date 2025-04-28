@@ -444,8 +444,15 @@ class GeminiBaseBot(BaseBot):
                 # For text-only content, use streaming directly
                 # Note: We use the generate_content method with stream=True
                 response_stream = client.generate_content(contents, stream=True)
-                async for partial_response in self._process_streaming_response(response_stream):
-                    yield partial_response
+                # Process each chunk from the response stream directly
+                async for chunk in response_stream:
+                    if hasattr(chunk, "text") and chunk.text:
+                        yield PartialResponse(text=chunk.text)
+                    elif hasattr(chunk, "parts") and chunk.parts:
+                        # Some versions of the API might return text in parts
+                        for part in chunk.parts:
+                            if hasattr(part, "text") and part.text:
+                                yield PartialResponse(text=part.text)
             except ImportError:
                 # Fall back if imports fail
                 logger.warning("Failed to import google.generativeai for streaming")
