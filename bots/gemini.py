@@ -140,9 +140,17 @@ class GeminiBaseBot(BaseBot):
         """
         # Check if attachment exists
         if not attachment:
+            logger.warning("Received null attachment")
             return None
 
+        # Log attachment details for debugging
+        logger.info(f"Processing attachment: {type(attachment).__name__}")
+        logger.info(f"Attachment attributes: {dir(attachment)}")
+        logger.info(
+            f"Attachment dict: {attachment.__dict__ if hasattr(attachment, '__dict__') else 'No __dict__'}"
+        )
         content_type = getattr(attachment, "content_type", "unknown")
+        logger.info(f"Attachment content_type: {content_type}")
 
         # Check if attachment is an image or video and supported
         is_supported_image = content_type in self.supported_image_types
@@ -154,21 +162,39 @@ class GeminiBaseBot(BaseBot):
             logger.warning(f"Unsupported attachment type: {content_type}")
             return None
 
-        # Access content via __dict__ to satisfy type checker (content is added by Poe but not in type definition)
-        if hasattr(attachment, "content") and attachment.__dict__.get("content"):
+        logger.info(f"Attachment is supported {'image' if is_supported_image else 'video'}")
+
+        # First try accessing content directly via normal attribute access
+        if hasattr(attachment, "content") and getattr(attachment, "content", None):
+            logger.info("Accessing attachment content via direct attribute")
+            return {"mime_type": content_type, "data": getattr(attachment, "content")}
+
+        # Then try via __dict__ to satisfy type checker (content is added by Poe but not in type definition)
+        elif hasattr(attachment, "__dict__") and attachment.__dict__.get("content"):
+            logger.info("Accessing attachment content via __dict__")
             return {"mime_type": content_type, "data": attachment.__dict__["content"]}
+
+        # Look for _content attribute which some Poe clients might use
+        elif hasattr(attachment, "_content") and getattr(attachment, "_content", None):
+            logger.info("Accessing attachment content via _content attribute")
+            return {"mime_type": content_type, "data": getattr(attachment, "_content")}
+
         # Try with url if content is not available
         elif hasattr(attachment, "url") and attachment.url:
+            logger.info(f"Downloading attachment from URL: {attachment.url}")
             try:
                 import requests
 
                 response = requests.get(attachment.url, timeout=20)  # Longer timeout for video
                 if response.status_code == 200:
+                    logger.info(f"Successfully downloaded {len(response.content)} bytes from URL")
                     return {"mime_type": content_type, "data": response.content}
+                else:
+                    logger.warning(f"Failed to download from URL: HTTP {response.status_code}")
             except Exception as e:
                 logger.warning(f"Failed to download media from URL: {str(e)}")
 
-        logger.warning("Could not access attachment content")
+        logger.error("Could not access attachment content through any method")
         return None
 
     async def _handle_bot_info_request(self) -> PartialResponse:
@@ -194,21 +220,29 @@ class GeminiBaseBot(BaseBot):
         Returns:
             List of media parts formatted for Gemini API
         """
+        logger.info(f"Preparing media parts from {len(attachments)} attachments")
         media_parts = []
 
-        for attachment in attachments:
+        for i, attachment in enumerate(attachments):
+            logger.info(f"Processing attachment {i+1} of {len(attachments)}")
             media_data = self._process_media_attachment(attachment)
+
             if media_data:
+                logger.info(f"Got media data with mime type: {media_data['mime_type']}")
+                logger.info(f"Media data size: {len(media_data['data'])} bytes")
+
                 try:
                     # We only need to validate the import is available
                     # Direct import used to verify the package is installed
                     _ = __import__("google.generativeai")
-                    media_parts.append(
-                        {
-                            "mime_type": media_data["mime_type"],
-                            "data": media_data["data"],
-                        }
-                    )
+
+                    formatted_part = {
+                        "mime_type": media_data["mime_type"],
+                        "data": media_data["data"],
+                    }
+
+                    media_parts.append(formatted_part)
+                    logger.info(f"Successfully added attachment {i+1} to media parts")
 
                     # Log the type of media we're processing
                     if media_data["mime_type"].startswith("video/"):
@@ -216,9 +250,14 @@ class GeminiBaseBot(BaseBot):
                     else:
                         logger.info(f"Processing image attachment: {media_data['mime_type']}")
 
-                except ImportError:
-                    logger.warning("Could not import google.generativeai for media processing")
+                except ImportError as e:
+                    logger.error(
+                        f"Could not import google.generativeai for media processing: {str(e)}"
+                    )
+            else:
+                logger.warning(f"Failed to process attachment {i+1}, no media data returned")
 
+        logger.info(f"Prepared {len(media_parts)} media parts total")
         return media_parts
 
     # For backward compatibility with tests
@@ -285,21 +324,66 @@ class GeminiBaseBot(BaseBot):
         Returns:
             Content formatted for Gemini API
         """
+        logger.info(
+            f"Preparing content with {len(media_parts)} media parts and chat history: {chat_history is not None}"
+        )
+
         # For multimodal queries (with images or videos), we can't use chat history
         if media_parts:
-            return [{"inline_data": part} for part in media_parts] + [{"text": user_message}]
+            logger.info("Preparing multimodal content")
+
+            # Format each media part correctly for Gemini API
+            formatted_parts = []
+            for i, part in enumerate(media_parts):
+                try:
+                    logger.info(f"Formatting media part {i+1}")
+                    formatted_part = {"inline_data": part}
+                    formatted_parts.append(formatted_part)
+                    logger.info(f"Media part {i+1} formatted successfully")
+                except Exception as e:
+                    logger.error(f"Error formatting media part {i+1}: {str(e)}")
+
+            # Add the text part at the end
+            formatted_parts.append({"text": user_message})
+            logger.info(f"Final multimodal content has {len(formatted_parts)} parts")
+
+            # Log the formatted content structure (without the actual binary data)
+            safe_parts = []
+            for part in formatted_parts:
+                if "inline_data" in part:
+                    # Don't log binary data, just its presence and size
+                    mime_type = part["inline_data"].get("mime_type", "unknown")
+                    data_size = (
+                        len(part["inline_data"].get("data", b""))
+                        if "data" in part["inline_data"]
+                        else 0
+                    )
+                    safe_parts.append(
+                        {"inline_data": {"mime_type": mime_type, "data_size": data_size}}
+                    )
+                else:
+                    safe_parts.append(part)
+
+            logger.info(f"Content structure: {safe_parts}")
+            return formatted_parts
 
         # For text-only queries, use chat history if available
         if chat_history:
+            logger.info("Preparing content with chat history")
             # If the last message is from the user, update it
             # Otherwise, add a new user message
             if chat_history and chat_history[-1]["role"] == "user":
                 chat_history[-1]["parts"] = [{"text": user_message}]
+                logger.info("Updated last user message in chat history")
             else:
                 chat_history.append({"role": "user", "parts": [{"text": user_message}]})
+                logger.info("Added new user message to chat history")
+
+            logger.info(f"Final chat history has {len(chat_history)} messages")
             return chat_history
 
         # Single-turn text-only query
+        logger.info("Preparing simple text-only content")
         return [{"text": user_message}]
 
     async def _process_streaming_response(self, response) -> AsyncGenerator[PartialResponse, None]:
@@ -517,29 +601,74 @@ class GeminiBaseBot(BaseBot):
         Yields:
             Media responses as PartialResponse objects
         """
+        logger.info(f"Processing media in response: {type(response).__name__}")
+
+        # Track if we've yielded anything to handle empty responses
+        yielded_content = False
+
+        # Check if response has parts (multimodal response)
         if hasattr(response, "parts"):
-            for part in response.parts:
+            logger.info(f"Response has {len(response.parts)} parts")
+
+            for i, part in enumerate(response.parts):
+                logger.info(f"Processing response part {i+1}")
+
+                # Check for inline_data (media content)
                 if hasattr(part, "inline_data") and part.inline_data:
+                    logger.info(f"Part {i+1} has inline_data")
+
                     try:
                         # Extract media data
                         media_data = part.inline_data.get("data")
                         mime_type = part.inline_data.get("mime_type")
 
                         if media_data and mime_type:
+                            logger.info(f"Found {mime_type} data of size {len(media_data)} bytes")
+
                             # Check if this is a video
                             is_video = mime_type.startswith("video/")
 
                             # Handle the media upload and display
-                            yield await self._handle_media_upload(
+                            media_response = await self._handle_media_upload(
                                 media_data, mime_type, query, is_video=is_video
                             )
-                    except Exception as e:
-                        logger.error(f"Error processing media response: {str(e)}")
-                        yield PartialResponse(text=f"[Error displaying media: {str(e)}]")
 
-        # Handle text in the response after media
+                            yield media_response
+                            yielded_content = True
+                            logger.info(f"Successfully processed {mime_type} media")
+                        else:
+                            logger.warning(
+                                f"Part {i+1} has inline_data but missing media_data or mime_type"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing media in part {i+1}: {str(e)}", exc_info=True
+                        )
+                        yield PartialResponse(text=f"[Error displaying media: {str(e)}]")
+                        yielded_content = True
+
+                # Check for text content in the part
+                if hasattr(part, "text") and part.text:
+                    logger.info(f"Part {i+1} has text content: {part.text[:100]}...")
+                    yield PartialResponse(text=part.text)
+                    yielded_content = True
+
+        # Handle text in the response after media (only if not already yielded from parts)
         if hasattr(response, "text") and response.text:
-            yield PartialResponse(text=response.text)
+            logger.info(f"Response has direct text attribute: {response.text[:100]}...")
+            # Only yield the text if we haven't yielded any content yet
+            # to avoid duplicating text that might have been in parts
+            if not yielded_content:
+                logger.info("Yielding direct text response")
+                yield PartialResponse(text=response.text)
+                yielded_content = True
+
+        # If we haven't yielded any content, yield a placeholder message
+        if not yielded_content:
+            logger.warning("No content found in response")
+            yield PartialResponse(text="No content found in response from Gemini.")
+
+        logger.info("Completed processing media in response")
 
     async def _process_multimodal_content(
         self, client, contents: list, query: QueryRequest
@@ -554,12 +683,57 @@ class GeminiBaseBot(BaseBot):
         Yields:
             Responses as PartialResponse objects
         """
-        # For multimodal content with images or videos, we need a complete response for proper processing
-        response = client.generate_content(contents)
+        logger.info("Processing multimodal content")
 
-        # Process any images or videos in the response
-        async for partial_response in self._process_media_in_response(response, query):
-            yield partial_response
+        try:
+            # Check if we have valid contents before sending to the API
+            if not contents:
+                logger.error("Empty contents provided for multimodal request")
+                yield PartialResponse(text="Error: No content to process")
+                return
+
+            # Log content structure (excluding binary data)
+            safe_contents = []
+            for item in contents:
+                if "inline_data" in item:
+                    # Don't log binary data, just its presence and size
+                    inline_data = item["inline_data"]
+                    mime_type = inline_data.get("mime_type", "unknown")
+                    data_size = len(inline_data.get("data", b"")) if "data" in inline_data else 0
+                    safe_contents.append(
+                        {"inline_data": {"mime_type": mime_type, "data_size": data_size}}
+                    )
+                else:
+                    safe_contents.append(item)
+
+            logger.info(f"Sending multimodal content to Gemini: {safe_contents}")
+
+            # For multimodal content with images or videos, we need a complete response for proper processing
+            logger.info("Making API call to Gemini for multimodal content")
+            response = client.generate_content(contents)
+            logger.info(f"Received response of type: {type(response).__name__}")
+
+            # Debug response structure
+            if hasattr(response, "text"):
+                logger.info(f"Response has text attribute: {response.text[:100]}...")
+            if hasattr(response, "parts"):
+                logger.info(f"Response has {len(response.parts)} parts")
+
+            # Process any images or videos in the response
+            async for partial_response in self._process_media_in_response(response, query):
+                yield partial_response
+
+            # If no response was yielded above and we have text, yield it now
+            if hasattr(response, "text") and response.text:
+                # Check if we've already yielded this text from parts
+                logger.info("Yielding text response")
+                yield PartialResponse(text=response.text)
+
+        except Exception as e:
+            logger.error(f"Error processing multimodal content: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error processing image: {str(e)}")
+
+        logger.info("Completed multimodal content processing")
 
     async def _process_user_query(
         self, client, user_message: str, query: QueryRequest
