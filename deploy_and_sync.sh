@@ -8,7 +8,7 @@ echo "===== Starting bot deployment and settings sync ====="
 
 # Deploy the bots to Modal
 echo "Deploying bots to Modal..."
-modal deploy app.py
+modal deploy deploy_bots.py
 
 # Wait for the deployment to complete
 echo "Waiting for deployment to stabilize..."
