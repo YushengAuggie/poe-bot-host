@@ -85,10 +85,8 @@ google_key = get_api_key("GOOGLE_API_KEY")
 
 Poe 上的每个机器人都需要自己的**访问密钥**（而非 API 密钥），您可以从 Poe 仪表板获取：
 
-1. 访问 [creator.poe.com](https://creator.poe.com/)
-2. 点击您的机器人
-3. 转到"API"选项卡
-4. 复制机器人访问密钥（以"psk_..."开头）
+1. 访问 https://poe.com/edit_bot?bot=YOUR_BOT_NAME (将 YOUR_BOT_NAME 替换为您的机器人名称)
+2. 找到并复制页面上提供的访问密钥
 
 ### 🔑 设置机器人访问密钥
 

@@ -90,10 +90,8 @@ google_key = get_api_key("GOOGLE_API_KEY")
 
 Each bot on Poe requires its own **access key** (not API key), which you get from the Poe dashboard:
 
-1. Go to [creator.poe.com](https://creator.poe.com/)
-2. Click on your bot
-3. Go to the "API" tab
-4. Copy the bot access key (starts with "psk_...")
+1. Go to https://poe.com/edit_bot?bot=YOUR_BOT_NAME (replace YOUR_BOT_NAME with your bot's name)
+2. Find and copy the access key provided on this page
 
 ### 🔑 Setting Up Bot Access Keys
 
