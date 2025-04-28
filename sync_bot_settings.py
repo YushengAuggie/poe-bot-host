@@ -5,6 +5,10 @@ Script to manually sync bot settings with Poe.
 This script synchronizes the bot settings (such as attachment support) with the Poe platform.
 Use this when changing settings and you need to update Poe without redeploying.
 
+Requirements:
+    - POE_ACCESS_KEY environment variable must be set. Get this from https://poe.com/api_key
+    - POE_API_KEY environment variable must be set. Get this from https://poe.com/api_key
+
 Usage:
     python sync_bot_settings.py --bot BOT_NAME
     python sync_bot_settings.py --all
@@ -62,6 +66,7 @@ async def sync_bot_via_fastapi_poe(bot_name: str) -> bool:
 
         if not access_key:
             logger.error(f"No access key found for bot {bot_name}")
+            logger.error("Please set the POE_ACCESS_KEY environment variable. See API_KEY_MANAGEMENT.md for details.")
             return False
 
         # Check if the function exists
@@ -91,6 +96,7 @@ async def sync_bot_via_http(bot_name: str) -> bool:
 
         if not access_key:
             logger.error(f"No access key found for bot {bot_name}")
+            logger.error("Please set the POE_ACCESS_KEY environment variable. See API_KEY_MANAGEMENT.md for details.")
             return False
 
         # URL for the settings endpoint
@@ -184,6 +190,13 @@ async def main_async():
     # Set log level
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # Check if POE_ACCESS_KEY is set
+    access_key = os.environ.get("POE_ACCESS_KEY")
+    if not access_key:
+        logger.error("POE_ACCESS_KEY environment variable is not set.")
+        logger.error("Please set the POE_ACCESS_KEY environment variable. See API_KEY_MANAGEMENT.md for details.")
+        return
 
     # Sync bots
     if args.all:
