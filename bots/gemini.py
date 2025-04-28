@@ -162,7 +162,6 @@ class GeminiBaseBot(BaseBot):
                     # We only need to validate the import is available
                     # Direct import used to verify the package is installed
                     _ = __import__('google.generativeai')
-
                     image_parts.append({
                         "mime_type": image_data["mime_type"],
                         "data": image_data["data"],
