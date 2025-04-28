@@ -403,6 +403,9 @@ class GeminiBaseBot(BaseBot):
     async def _process_user_query(self, client, user_message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
         """Process the user query and generate appropriate response.
 
+        This method is used by all Gemini model versions (2.0 and 2.5+) and handles
+        different response formats appropriately.
+
         Args:
             client: The Gemini API client
             user_message: The user's text message
@@ -421,6 +424,7 @@ class GeminiBaseBot(BaseBot):
         # Process the response appropriately
         if image_parts:
             # For multimodal content (with images), we use non-streaming mode
+            # This is consistent across all model versions
             async for partial_response in self._process_multimodal_content(client, contents, query):
                 yield partial_response
         else:
@@ -434,15 +438,16 @@ class GeminiBaseBot(BaseBot):
                 # Make the API call with streaming enabled
                 response = client.generate_content(contents, stream=True)
 
-                # Process the streaming response
-                # First check if the response is a special Google AI streaming response
-                # that needs to be accessed differently
+                # Process the streaming response based on the response type
+                # Each Gemini version might return a different response format
+                
+                # Case 1: Response has resolve() method (Gemini 2.5+ models)
                 if hasattr(response, "resolve"):
                     try:
-                        # For newer Gemini versions, we need to use chunked iteration
-                        logger.debug("Using chunked iteration for response with resolve() method")
+                        # For newer Gemini versions, we need to use synchronous chunked iteration
+                        logger.debug(f"Using chunked iteration with resolve() method for model: {self.model_name}")
 
-                        # Process response chunks as they come in
+                        # Process response chunks as they come in using synchronous iteration
                         for chunk in response:
                             if hasattr(chunk, "text") and chunk.text:
                                 yield PartialResponse(text=chunk.text)
@@ -453,8 +458,11 @@ class GeminiBaseBot(BaseBot):
                     except Exception as e:
                         logger.error(f"Error with chunked iteration: {str(e)}")
                         yield PartialResponse(text=f"Error: Streaming error from Gemini: {str(e)}")
+                
+                # Case 2: Response is async iterable or regular iterable
                 else:
-                    # Default streaming response handling
+                    # Use our generic streaming response handler that can handle different iterator types
+                    logger.debug(f"Using standard streaming for model: {self.model_name}")
                     async for partial_response in self._process_streaming_response(response):
                         yield partial_response
 

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi_poe.types import Attachment, PartialResponse, ProtocolMessage, QueryRequest
 
-from bots.gemini import GeminiBaseBot, GeminiBot, get_client
+from bots.gemini import GeminiBaseBot, GeminiBot, Gemini25FlashBot, Gemini25ProExpBot, get_client
 from utils.base_bot import BotError
 
 
@@ -1105,6 +1105,85 @@ async def test_process_user_query(gemini_bot, sample_query_with_text, sample_que
         assert responses[0].text == "I see an image"
         # For multimodal content, it should call generate_content instead of streaming
         assert mock_client.generate_content.called
+
+
+@pytest.mark.asyncio
+async def test_process_user_query_for_all_model_versions(sample_query_with_text):
+    """Test the _process_user_query method across different Gemini model versions."""
+    # Create instances of different model versions
+    gemini_20_bot = GeminiBot()  # 2.0 model
+    gemini_25_flash_bot = Gemini25FlashBot()  # 2.5 Flash model
+    gemini_25_pro_bot = Gemini25ProExpBot()  # 2.5 Pro model
+    
+    bots = [gemini_20_bot, gemini_25_flash_bot, gemini_25_pro_bot]
+    
+    # Create two different mock response classes for different model behaviors
+    
+    # Mock for newer models with resolve() method
+    class MockResolveResponse:
+        """Mock a streaming response for newer Gemini models that use resolve()."""
+        
+        def __init__(self, text):
+            self.text = text
+        
+        def __iter__(self):
+            yield MagicMock(text=self.text)
+            
+        def resolve(self):
+            return MagicMock(text=self.text)
+            
+    # Mock for models that use async iteration
+    class MockAsyncResponse:
+        """Mock a streaming response that uses async iteration."""
+        
+        def __init__(self, text):
+            self.text = text
+        
+        def __aiter__(self):
+            return self
+            
+        async def __anext__(self):
+            if hasattr(self, "_yielded") and self._yielded:
+                raise StopAsyncIteration
+            self._yielded = True
+            return MagicMock(text=self.text)
+    
+    # Create a mock client that works for all scenarios
+    mock_client = MagicMock()
+    
+    # Set up sys.modules patch to allow imports
+    sys_modules_patcher = patch.dict('sys.modules', {
+        'google': MagicMock(),
+        'google.generativeai': MagicMock(),
+    })
+    
+    # Test all bot instances with different streaming responses
+    with sys_modules_patcher:
+        for bot in bots:
+            # Test 1: With resolve() method (newer models)
+            mock_resolve_response = MockResolveResponse("Hello from Gemini with resolve")
+            mock_client.generate_content.return_value = mock_resolve_response
+            
+            responses = []
+            async for response in bot._process_user_query(mock_client, "Hello", sample_query_with_text):
+                responses.append(response)
+                
+            # All bots should produce a response with the resolve path
+            assert len(responses) > 0
+            assert "Hello from Gemini" in responses[0].text
+            
+            # Test 2: With async iteration (older models)
+            mock_client.reset_mock()
+            mock_async_response = MockAsyncResponse("Hello from Gemini async")
+            mock_client.generate_content.return_value = mock_async_response
+            
+            responses = []
+            async for response in bot._process_user_query(mock_client, "Hello async", sample_query_with_text):
+                responses.append(response)
+                
+            # Should still produce a response with the async iteration path
+            assert len(responses) > 0
+            assert "Hello from Gemini async" in responses[0].text
 
 
 def test_get_client_with_valid_key():
