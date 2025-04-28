@@ -88,6 +88,7 @@ class GeminiBaseBot(BaseBot):
     bot_description = "Base Gemini model bot."
     supports_image_input = True  # Enable image input by default
     supports_video_input = True  # Enable video input by default
+    supports_grounding = False  # Default value, will be set based on model
 
     def __init__(self, **kwargs):
         """Initialize the GeminiBaseBot."""
@@ -95,6 +96,41 @@ class GeminiBaseBot(BaseBot):
         self.supported_image_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
         # Add support for video content types
         self.supported_video_types = ["video/mp4", "video/quicktime", "video/webm"]
+
+        # Determine grounding support based on model
+        self._set_grounding_support()
+
+        # Default grounding settings (only effective if the model supports grounding)
+        self.grounding_enabled = kwargs.get("grounding_enabled", self.supports_grounding)
+        self.citations_enabled = kwargs.get("citations_enabled", True)
+        self.grounding_sources = []
+
+    def _set_grounding_support(self):
+        """Set grounding support based on the model name.
+
+        Research indicates that only Pro models fully support grounding.
+        """
+        # Models known to support grounding based on Google's documentation
+        grounding_supported_models = [
+            # Pro models
+            "gemini-2.0-pro",
+            "gemini-2.0-pro-",  # Prefix match for pro experimental models
+            "gemini-2.5-pro",
+            # 2.5 models generally support more advanced features
+            "gemini-2.5-",
+        ]
+
+        # Check if the current model supports grounding
+        self.supports_grounding = any(
+            self.model_name.startswith(supported_model)
+            for supported_model in grounding_supported_models
+        )
+
+        # Log the grounding support status
+        if self.supports_grounding:
+            logger.info(f"Model {self.model_name} supports grounding")
+        else:
+            logger.info(f"Model {self.model_name} does not support grounding")
 
     def _extract_attachments(self, query: QueryRequest) -> list:
         """Extract attachments from the query.
@@ -207,6 +243,9 @@ class GeminiBaseBot(BaseBot):
         metadata["model_name"] = self.model_name
         metadata["supports_image_input"] = self.supports_image_input
         metadata["supports_video_input"] = self.supports_video_input
+        metadata["supports_grounding"] = self.supports_grounding
+        metadata["grounding_enabled"] = self.grounding_enabled
+        metadata["citations_enabled"] = self.citations_enabled
         metadata["supported_image_types"] = self.supported_image_types
         metadata["supported_video_types"] = self.supported_video_types
         return PartialResponse(text=json.dumps(metadata, indent=2))
@@ -307,6 +346,105 @@ class GeminiBaseBot(BaseBot):
             chat_history.append({"role": role, "parts": [{"text": message.content}]})
 
         return chat_history
+
+    def add_grounding_source(self, source: Dict[str, Any]) -> None:
+        """Add a grounding source for the bot to use.
+
+        Args:
+            source: A dictionary containing source information with keys:
+                - title: Title of the source
+                - url: URL of the source
+                - content: The content to use for grounding
+        """
+        if not isinstance(source, dict):
+            logger.warning(f"Invalid grounding source: {source}")
+            return
+
+        required_keys = ["title", "content"]
+        if not all(key in source for key in required_keys):
+            logger.warning(f"Grounding source missing required keys: {required_keys}")
+            return
+
+        self.grounding_sources.append(source)
+        logger.info(f"Added grounding source: {source.get('title')}")
+
+    def clear_grounding_sources(self) -> None:
+        """Clear all grounding sources."""
+        self.grounding_sources = []
+        logger.info("Cleared all grounding sources")
+
+    def set_grounding_enabled(self, enabled: bool) -> None:
+        """Enable or disable grounding.
+
+        Args:
+            enabled: Whether grounding should be enabled
+        """
+        # Only enable if the model supports it
+        if enabled and not self.supports_grounding:
+            logger.warning(f"Model {self.model_name} does not support grounding. Request ignored.")
+            return
+
+        self.grounding_enabled = enabled
+        logger.info(f"Grounding {'enabled' if enabled else 'disabled'}")
+
+    def set_citations_enabled(self, enabled: bool) -> None:
+        """Enable or disable citations in grounding responses.
+
+        Args:
+            enabled: Whether citations should be included in responses
+        """
+        self.citations_enabled = enabled
+        logger.info(f"Citations {'enabled' if enabled else 'disabled'}")
+
+    def _prepare_grounding_config(self) -> Optional[Dict[str, Any]]:
+        """Prepare the grounding configuration for the Gemini API.
+
+        Returns:
+            A dictionary with grounding configuration or None if grounding is disabled
+            or no sources are available
+        """
+        # Check if grounding is supported and enabled
+        if not self.supports_grounding:
+            logger.debug(f"Model {self.model_name} does not support grounding")
+            return None
+
+        if not self.grounding_enabled or not self.grounding_sources:
+            return None
+
+        try:
+            # Verify the package is installed
+            _ = __import__("google.generativeai")
+
+            ground_sources: list[Dict[str, str]] = []
+            for source in self.grounding_sources:
+                ground_source: Dict[str, str] = {
+                    "title": source.get("title", ""),
+                    "content": source.get("content", ""),
+                }
+
+                # Add optional URL if present
+                if "url" in source:
+                    ground_source["uri"] = source["url"]
+
+                ground_sources.append(ground_source)
+
+            # Explicitly define the type of the returned dictionary
+            result: Dict[str, Any] = {
+                "groundingEnabled": True,
+                "groundingSources": ground_sources,
+            }
+
+            # Add citation configuration if enabled
+            if self.citations_enabled:
+                result["includeCitations"] = True
+
+            return result
+        except ImportError:
+            logger.warning("Failed to import google.generativeai for grounding")
+            return None
+        except Exception as e:
+            logger.error(f"Error preparing grounding config: {str(e)}")
+            return None
 
     def _prepare_content(
         self,
@@ -685,6 +823,21 @@ class GeminiBaseBot(BaseBot):
         """
         logger.info("Processing multimodal content")
 
+        # Prepare grounding configuration if enabled
+        grounding_config = self._prepare_grounding_config()
+        if grounding_config:
+            logger.info(
+                f"Using grounding with {len(grounding_config.get('groundingSources', []))} sources for multimodal content"
+            )
+
+        # Configure generation with grounding if available
+        generation_config: Dict[str, Any] = {}
+
+        # Apply grounding configuration if available
+        if grounding_config:
+            # Create the nested configuration structure
+            generation_config["generationConfig"] = {"groundingConfig": grounding_config}
+
         try:
             # Check if we have valid contents before sending to the API
             if not contents:
@@ -710,7 +863,7 @@ class GeminiBaseBot(BaseBot):
 
             # For multimodal content with images or videos, we need a complete response for proper processing
             logger.info("Making API call to Gemini for multimodal content")
-            response = client.generate_content(contents)
+            response = client.generate_content(contents, **generation_config)
             logger.info(f"Received response of type: {type(response).__name__}")
 
             # Debug response structure
@@ -782,8 +935,22 @@ class GeminiBaseBot(BaseBot):
             # For text-only content, use streaming mode
             logger.info(f"Using streaming mode for model: {self.model_name}")
 
-            # Make the API call with streaming enabled
-            response = client.generate_content(contents, stream=True)
+            # Prepare grounding configuration if enabled
+            grounding_config = self._prepare_grounding_config()
+            if grounding_config:
+                logger.info(
+                    f"Using grounding with {len(grounding_config.get('groundingSources', []))} sources"
+                )
+
+            # Make the API call with streaming enabled and grounding config if available
+            generation_config: Dict[str, Any] = {"stream": True}
+
+            # Apply grounding configuration if available
+            if grounding_config:
+                # Create the nested configuration structure
+                generation_config["generationConfig"] = {"groundingConfig": grounding_config}
+
+            response = client.generate_content(contents, **generation_config)
 
             # Case 1: Response has resolve() method (Gemini 2.5+ models)
             if hasattr(response, "resolve"):

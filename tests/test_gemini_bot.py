@@ -344,6 +344,8 @@ async def test_bot_info_request(gemini_bot, sample_query_with_text):
     assert "model_name" in bot_info
     assert bot_info["model_name"] == "gemini-2.0-flash"
     assert bot_info["supports_image_input"] is True
+    assert "supports_grounding" in bot_info
+    assert "citations_enabled" in bot_info
 
 
 @pytest.mark.asyncio
