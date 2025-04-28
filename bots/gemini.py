@@ -87,11 +87,14 @@ class GeminiBaseBot(BaseBot):
     bot_name = "GeminiBaseBot"
     bot_description = "Base Gemini model bot."
     supports_image_input = True  # Enable image input by default
+    supports_video_input = True  # Enable video input by default
 
     def __init__(self, **kwargs):
         """Initialize the GeminiBaseBot."""
         super().__init__(**kwargs)
         self.supported_image_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+        # Add support for video content types
+        self.supported_video_types = ["video/mp4", "video/quicktime", "video/webm"]
 
     def _extract_attachments(self, query: QueryRequest) -> list:
         """Extract attachments from the query.
@@ -103,14 +106,29 @@ class GeminiBaseBot(BaseBot):
             List of attachments
         """
         attachments = []
-        if isinstance(query.query, list) and query.query:
-            last_message = query.query[-1]
-            if hasattr(last_message, "attachments"):
-                attachments = last_message.attachments
+        try:
+            if isinstance(query.query, list) and query.query:
+                last_message = query.query[-1]
+                if hasattr(last_message, "attachments") and last_message.attachments:
+                    attachments = last_message.attachments
+                    logger.info(f"Found {len(attachments)} attachments")
+
+            # Debug attachment details
+            for i, attachment in enumerate(attachments):
+                logger.debug(f"Attachment {i}: type={getattr(attachment, 'content_type', 'unknown')}")
+                if hasattr(attachment, 'url'):
+                    logger.debug(f"Attachment {i} URL: {attachment.url}")
+                if hasattr(attachment, 'content'):
+                    content_size = len(attachment.content) if attachment.content else 0
+                    logger.debug(f"Attachment {i} content size: {content_size} bytes")
+
+        except Exception as e:
+            logger.error(f"Error extracting attachments: {str(e)}")
+
         return attachments
 
-    def _process_image_attachment(self, attachment) -> Optional[Dict[str, Any]]:
-        """Process an image attachment for Gemini.
+    def _process_media_attachment(self, attachment) -> Optional[Dict[str, Any]]:
+        """Process a media (image or video) attachment for Gemini.
 
         Args:
             attachment: The attachment object
@@ -118,19 +136,36 @@ class GeminiBaseBot(BaseBot):
         Returns:
             Dictionary with mime_type and data, or None if unsupported
         """
-        # Check if attachment is an image and supported
-        if (
-            not hasattr(attachment, "content_type")
-            or attachment.content_type not in self.supported_image_types
-        ):
+        # Check if attachment exists
+        if not attachment:
+            return None
+
+        content_type = getattr(attachment, "content_type", "unknown")
+
+        # Check if attachment is an image or video and supported
+        is_supported_image = content_type in self.supported_image_types
+        is_supported_video = content_type in self.supported_video_types
+
+        if not hasattr(attachment, "content_type") or (not is_supported_image and not is_supported_video):
             logger.warning(
-                f"Unsupported attachment type: {getattr(attachment, 'content_type', 'unknown')}"
+                f"Unsupported attachment type: {content_type}"
             )
             return None
 
         # Access content via __dict__ to satisfy type checker (content is added by Poe but not in type definition)
         if hasattr(attachment, "content") and attachment.__dict__.get("content"):
-            return {"mime_type": attachment.content_type, "data": attachment.__dict__["content"]}
+            return {"mime_type": content_type, "data": attachment.__dict__["content"]}
+        # Try with url if content is not available
+        elif hasattr(attachment, "url") and attachment.url:
+            try:
+                import requests
+                response = requests.get(attachment.url, timeout=20)  # Longer timeout for video
+                if response.status_code == 200:
+                    return {"mime_type": content_type, "data": response.content}
+            except Exception as e:
+                logger.warning(f"Failed to download media from URL: {str(e)}")
+
+        logger.warning("Could not access attachment content")
         return None
 
     async def _handle_bot_info_request(self) -> PartialResponse:
@@ -142,36 +177,46 @@ class GeminiBaseBot(BaseBot):
         metadata = self._get_bot_metadata()
         metadata["model_name"] = self.model_name
         metadata["supports_image_input"] = self.supports_image_input
+        metadata["supports_video_input"] = self.supports_video_input
+        metadata["supported_image_types"] = self.supported_image_types
+        metadata["supported_video_types"] = self.supported_video_types
         return PartialResponse(text=json.dumps(metadata, indent=2))
 
-    def _prepare_image_parts(self, attachments: list) -> list:
-        """Process image attachments into parts for Gemini API.
+    def _prepare_media_parts(self, attachments: list) -> list:
+        """Process media attachments (images and videos) into parts for Gemini API.
 
         Args:
             attachments: List of attachments from the query
 
         Returns:
-            List of image parts formatted for Gemini API
+            List of media parts formatted for Gemini API
         """
-        image_parts = []
+        media_parts = []
 
         for attachment in attachments:
-            image_data = self._process_image_attachment(attachment)
-            if image_data:
+            media_data = self._process_media_attachment(attachment)
+            if media_data:
                 try:
                     # We only need to validate the import is available
                     # Direct import used to verify the package is installed
                     _ = __import__("google.generativeai")
-                    image_parts.append(
+                    media_parts.append(
                         {
-                            "mime_type": image_data["mime_type"],
-                            "data": image_data["data"],
+                            "mime_type": media_data["mime_type"],
+                            "data": media_data["data"],
                         }
                     )
-                except ImportError:
-                    logger.warning("Could not import google.generativeai for image processing")
 
-        return image_parts
+                    # Log the type of media we're processing
+                    if media_data["mime_type"].startswith("video/"):
+                        logger.info(f"Processing video attachment: {media_data['mime_type']}")
+                    else:
+                        logger.info(f"Processing image attachment: {media_data['mime_type']}")
+
+                except ImportError:
+                    logger.warning("Could not import google.generativeai for media processing")
+
+        return media_parts
 
     def _format_chat_history(self, query: QueryRequest) -> list[dict[str, object]]:
         """Extract and format chat history from the query for Gemini API.
@@ -210,22 +255,22 @@ class GeminiBaseBot(BaseBot):
     def _prepare_content(
         self,
         user_message: str,
-        image_parts: list,
+        media_parts: list,
         chat_history: Optional[list[dict[str, object]]] = None,
     ) -> list:
-        """Prepare content for the Gemini API (text and/or images).
+        """Prepare content for the Gemini API (text and/or images/videos).
 
         Args:
             user_message: The user's text message
-            image_parts: List of processed image parts
+            media_parts: List of processed media parts (images or videos)
             chat_history: Optional chat history list
 
         Returns:
             Content formatted for Gemini API
         """
-        # For multimodal queries (with images), we can't use chat history
-        if image_parts:
-            return [{"inline_data": part} for part in image_parts] + [{"text": user_message}]
+        # For multimodal queries (with images or videos), we can't use chat history
+        if media_parts:
+            return [{"inline_data": part} for part in media_parts] + [{"text": user_message}]
 
         # For text-only queries, use chat history if available
         if chat_history:
@@ -320,7 +365,7 @@ class GeminiBaseBot(BaseBot):
     # Method removed - no longer needed
 
     def _get_extension_for_mime_type(self, mime_type: str) -> str:
-        """Get the appropriate file extension for a MIME type.
+        """Get the appropriate file extension for an image MIME type.
 
         Args:
             mime_type: MIME type of the image
@@ -337,34 +382,55 @@ class GeminiBaseBot(BaseBot):
         else:
             return "jpg"  # Default to jpg
 
-    async def _handle_image_upload(
-        self, image_data: bytes, mime_type: str, query: QueryRequest
-    ) -> PartialResponse:
-        """Handle uploading an image to Poe.
+    def _get_extension_for_video_mime_type(self, mime_type: str) -> str:
+        """Get the appropriate file extension for a video MIME type.
 
         Args:
-            image_data: Raw image data
-            mime_type: MIME type of the image
-            query: Original query for message_id
+            mime_type: MIME type of the video
 
         Returns:
-            Response with image display information
+            File extension (without the dot)
         """
-        # Check image size for performance reasons
-        max_image_size = 10 * 1024 * 1024  # 10MB limit
-        if len(image_data) > max_image_size:
-            logger.warning(f"Image too large ({len(image_data)} bytes), skipping")
-            return PartialResponse(text="[Image too large to display]")
+        if mime_type == "video/webm":
+            return "webm"
+        elif mime_type == "video/quicktime":
+            return "mov"
+        else:
+            return "mp4"  # Default to mp4
+
+    async def _handle_media_upload(
+        self, media_data: bytes, mime_type: str, query: QueryRequest, is_video: bool = False
+    ) -> PartialResponse:
+        """Handle uploading an image or video to Poe.
+
+        Args:
+            media_data: Raw image or video data
+            mime_type: MIME type of the media
+            query: Original query for message_id
+            is_video: Whether the media is a video
+
+        Returns:
+            Response with media display information
+        """
+        # Check media size for performance reasons
+        max_media_size = 50 * 1024 * 1024 if is_video else 10 * 1024 * 1024  # 50MB for video, 10MB for images
+        if len(media_data) > max_media_size:
+            logger.warning(f"Media too large ({len(media_data)} bytes), skipping")
+            return PartialResponse(text=f"[{'Video' if is_video else 'Image'} too large to display]")
 
         # Determine file extension
-        extension = self._get_extension_for_mime_type(mime_type)
-        filename = f"gemini_image.{extension}"
+        if is_video:
+            extension = self._get_extension_for_video_mime_type(mime_type)
+            filename = f"gemini_video.{extension}"
+        else:
+            extension = self._get_extension_for_mime_type(mime_type)
+            filename = f"gemini_image.{extension}"
 
         try:
             # Use Poe's official attachment mechanism
             attachment_upload_response = await self.post_message_attachment(
                 message_id=query.message_id,
-                file_data=image_data,
+                file_data=media_data,
                 filename=filename,
                 is_inline=True,
             )
@@ -373,15 +439,24 @@ class GeminiBaseBot(BaseBot):
                 not hasattr(attachment_upload_response, "inline_ref")
                 or not attachment_upload_response.inline_ref
             ):
-                logger.error("Error uploading image: No inline_ref in response")
-                return PartialResponse(text="[Error uploading image to Poe]")
+                logger.error("Error uploading media: No inline_ref in response")
+                return PartialResponse(text=f"[Error uploading {'video' if is_video else 'image'} to Poe]")
 
             # Create markdown with the official Poe attachment reference
-            output_md = f"![{filename}][{attachment_upload_response.inline_ref}]"
+            # For videos we don't use an exclamation mark
+            if is_video:
+                output_md = f"[{filename}][{attachment_upload_response.inline_ref}]"
+            else:
+                output_md = f"![{filename}][{attachment_upload_response.inline_ref}]"
             return PartialResponse(text=output_md)
         except Exception as e:
-            logger.error(f"Error uploading image: {str(e)}")
-            # Fallback to base64 encoding for tests/local development
+            logger.error(f"Error uploading media: {str(e)}")
+
+            # For video, there's no fallback, just return error
+            if is_video:
+                return PartialResponse(text=f"[Error uploading video: {str(e)}]")
+
+            # Image fallback to base64 encoding for tests/local development
             try:
                 import base64
                 import io
@@ -389,7 +464,7 @@ class GeminiBaseBot(BaseBot):
                 from PIL import Image
 
                 # Resize the image if it's too large
-                img = Image.open(io.BytesIO(image_data))
+                img = Image.open(io.BytesIO(media_data))
                 img_format = img.format or extension.upper()
 
                 # Save to buffer
@@ -403,45 +478,50 @@ class GeminiBaseBot(BaseBot):
                 )
             except Exception as nested_e:
                 logger.error(f"Error with base64 fallback: {str(nested_e)}")
-                return PartialResponse(text=f"[Error uploading image: {str(e)}]")
+                return PartialResponse(text=f"[Error uploading media: {str(e)}]")
 
     # Method removed - no longer needed
 
-    async def _process_images_in_response(
+    async def _process_media_in_response(
         self, response, query: QueryRequest
     ) -> AsyncGenerator[PartialResponse, None]:
-        """Process images in the Gemini response.
+        """Process media (images and videos) in the Gemini response.
 
         Args:
             response: The response from Gemini API
             query: The original query from the user
 
         Yields:
-            Image responses as PartialResponse objects
+            Media responses as PartialResponse objects
         """
         if hasattr(response, "parts"):
             for part in response.parts:
                 if hasattr(part, "inline_data") and part.inline_data:
                     try:
-                        # Extract image data
-                        image_data = part.inline_data.get("data")
+                        # Extract media data
+                        media_data = part.inline_data.get("data")
                         mime_type = part.inline_data.get("mime_type")
 
-                        if image_data and mime_type:
-                            # Handle the image upload and display
-                            yield await self._handle_image_upload(image_data, mime_type, query)
-                    except Exception as e:
-                        logger.error(f"Error processing image response: {str(e)}")
-                        yield PartialResponse(text=f"[Error displaying image: {str(e)}]")
+                        if media_data and mime_type:
+                            # Check if this is a video
+                            is_video = mime_type.startswith("video/")
 
-        # Handle text in the response after images
+                            # Handle the media upload and display
+                            yield await self._handle_media_upload(
+                                media_data, mime_type, query, is_video=is_video
+                            )
+                    except Exception as e:
+                        logger.error(f"Error processing media response: {str(e)}")
+                        yield PartialResponse(text=f"[Error displaying media: {str(e)}]")
+
+        # Handle text in the response after media
         if hasattr(response, "text") and response.text:
             yield PartialResponse(text=response.text)
 
     async def _process_multimodal_content(
         self, client, contents: list, query: QueryRequest
     ) -> AsyncGenerator[PartialResponse, None]:
-        """Process multimodal content (text + images).
+        """Process multimodal content (text + images/videos).
 
         Args:
             client: The Gemini API client
@@ -451,11 +531,11 @@ class GeminiBaseBot(BaseBot):
         Yields:
             Responses as PartialResponse objects
         """
-        # For multimodal content with images, we need a complete response for proper processing
+        # For multimodal content with images or videos, we need a complete response for proper processing
         response = client.generate_content(contents)
 
-        # Process any images in the response
-        async for partial_response in self._process_images_in_response(response, query):
+        # Process any images or videos in the response
+        async for partial_response in self._process_media_in_response(response, query):
             yield partial_response
 
     async def _process_user_query(
@@ -474,16 +554,16 @@ class GeminiBaseBot(BaseBot):
         Yields:
             Response chunks as PartialResponse objects
         """
-        # Process any image attachments
+        # Process any image or video attachments
         attachments = self._extract_attachments(query)
-        image_parts = self._prepare_image_parts(attachments)
+        media_parts = self._prepare_media_parts(attachments)
 
         # Format chat history for context (only for text-only conversations)
-        chat_history = self._format_chat_history(query) if not image_parts else None
+        chat_history = self._format_chat_history(query) if not media_parts else None
 
         # Prepare content (with chat history for text-only, without for multimodal)
         # Type ignore: pyright complains about None not being compatible with the list type
-        contents = self._prepare_content(user_message, image_parts, chat_history)  # type: ignore
+        contents = self._prepare_content(user_message, media_parts, chat_history)  # type: ignore
 
         # Log chat history use if applicable
         if chat_history and len(chat_history) > 1:
@@ -493,8 +573,9 @@ class GeminiBaseBot(BaseBot):
             # Verify the package is installed
             _ = __import__("google.generativeai")
 
-            # For multimodal content (with images), we use non-streaming mode
-            if image_parts:
+            # For multimodal content (with images or videos), we use non-streaming mode
+            if media_parts:
+                logger.info(f"Using multimodal mode with {len(media_parts)} media parts")
                 async for partial_response in self._process_multimodal_content(
                     client, contents, query
                 ):
