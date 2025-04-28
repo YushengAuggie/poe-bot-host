@@ -376,10 +376,10 @@ class ConfigurableBot(BaseBot):
     def __init__(self, **kwargs):
         # 使用环境变量或 kwargs 初始化
         # 机器人的 Poe 访问密钥由 BaseBot.get_access_key() 自动处理
-        
+
         # 对于其他服务 API 密钥，使用 get_api_key 工具
         from utils.api_keys import get_api_key
-        
+
         settings = {
             "openai_api_key": get_api_key("OPENAI_API_KEY")
         }
@@ -680,4 +680,4 @@ pre-commit install --hook-type pre-push
 
 ---
 
-*本框架与 Poe、Modal 或 Anthropic 没有官方关联。*
+*本框架与 Poe 或 Modal 没有官方关联。*

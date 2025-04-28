@@ -382,10 +382,10 @@ class ConfigurableBot(BaseBot):
     def __init__(self, **kwargs):
         # Initialize with settings from environment or kwargs
         # The bot's Poe access key is automatically handled by BaseBot.get_access_key()
-        
+
         # For other service API keys, use get_api_key utility
         from utils.api_keys import get_api_key
-        
+
         settings = {
             "openai_api_key": get_api_key("OPENAI_API_KEY")
         }
@@ -730,4 +730,4 @@ Created with ❤️ for the Poe community.
 
 ---
 
-*This framework is not officially affiliated with Poe, Modal, or Anthropic.*
+*This framework is not officially affiliated with Poe or Modal.*
