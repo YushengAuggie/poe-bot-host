@@ -159,9 +159,7 @@ class GeminiBaseBot(BaseBot):
             image_data = self._process_image_attachment(attachment)
             if image_data:
                 try:
-                    # Import inside try block to avoid module-level import errors
-                    import google.generativeai as genai
-
+                    # Just proceed with creating the image part
                     image_parts.append({
                         "mime_type": image_data["mime_type"],
                         "data": image_data["data"],
@@ -349,12 +347,9 @@ class GeminiBaseBot(BaseBot):
         Yields:
             Image responses as PartialResponse objects
         """
-        has_images = False
-
         if hasattr(response, "parts"):
             for part in response.parts:
                 if hasattr(part, "inline_data") and part.inline_data:
-                    has_images = True
                     try:
                         # Extract image data
                         image_data = part.inline_data.get("data")
@@ -418,9 +413,6 @@ class GeminiBaseBot(BaseBot):
                 yield partial_response
         else:
             try:
-                # Import inside try block to avoid module-level import errors
-                import google.generativeai as genai
-
                 # For text-only content, use streaming directly
                 # Note: We use the generate_content method with stream=True
                 response_stream = client.generate_content(contents, stream=True)
