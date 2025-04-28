@@ -39,3 +39,24 @@ def simple_query():
         message_id="test_message",
         protocol="poe"
     )
+
+@pytest.fixture
+def video_attachment():
+    """Create a mock video attachment."""
+    from fastapi_poe.types import Attachment
+
+    # Create a minimal class that extends Attachment with content field
+    class MockVideoAttachment(Attachment):
+        url: str = "mock://video"
+        content_type: str = "video/mp4"
+        content: bytes = b""
+
+        def __init__(self, name: str, content: bytes):
+            super().__init__(url="mock://video", content_type="video/mp4", name=name)
+            # Store content as a non-model field
+            object.__setattr__(self, "content", content)
+
+    # Sample MP4 header (not a real video, just for testing)
+    mp4_content = b"\x00\x00\x00\x20\x66\x74\x79\x70\x69\x73\x6F\x6D\x00\x00\x02\x00"
+
+    return MockVideoAttachment("test_video.mp4", mp4_content)

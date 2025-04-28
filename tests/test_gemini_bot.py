@@ -74,6 +74,14 @@ def image_attachment():
 
 
 @pytest.fixture
+def video_attachment_local():
+    """Create a mock video attachment."""
+    # Use a minimal valid MP4 content (not a real video, just for testing)
+    mp4_content = b"\x00\x00\x00\x20\x66\x74\x79\x70\x69\x73\x6F\x6D\x00\x00\x02\x00"
+    return MockAttachment("test.mp4", "video/mp4", mp4_content)
+
+
+@pytest.fixture
 def unsupported_attachment():
     """Create a mock unsupported attachment."""
     binary_content = b"This is not an image"
@@ -120,6 +128,25 @@ def sample_query_with_image(image_attachment):
     message = ProtocolMessage(
         role="user", content="What do you see in this image?", attachments=[image_attachment]
     )
+    print(f"Created message with image: {message}")
+
+    return QueryRequest(
+        version="1.0",
+        type="query",
+        query=[message],
+        user_id="test_user",
+        conversation_id="test_conversation",
+        message_id="test_message",
+    )
+
+
+@pytest.fixture
+def sample_query_with_video(video_attachment_local):
+    """Create a sample query with a video attachment."""
+    message = ProtocolMessage(
+        role="user", content="What do you see in this video?", attachments=[video_attachment_local]
+    )
+    print(f"Created message with video: {message}")
 
     return QueryRequest(
         version="1.0",
@@ -256,21 +283,33 @@ async def test_format_chat_history(gemini_base_bot, sample_query_with_chat_histo
 @pytest.mark.asyncio
 async def test_process_image_attachment(gemini_base_bot, image_attachment):
     """Test processing an image attachment."""
-    image_data = gemini_base_bot._process_image_attachment(image_attachment)
+    media_data = gemini_base_bot._process_media_attachment(image_attachment)
 
-    assert image_data is not None
-    assert "mime_type" in image_data
-    assert "data" in image_data
-    assert image_data["mime_type"] == "image/jpeg"
-    assert isinstance(image_data["data"], bytes)
+    assert media_data is not None
+    assert "mime_type" in media_data
+    assert "data" in media_data
+    assert media_data["mime_type"] == "image/jpeg"
+    assert isinstance(media_data["data"], bytes)
+
+
+@pytest.mark.asyncio
+async def test_process_video_attachment(gemini_base_bot, video_attachment_local):
+    """Test processing a video attachment."""
+    media_data = gemini_base_bot._process_media_attachment(video_attachment_local)
+
+    assert media_data is not None
+    assert "mime_type" in media_data
+    assert "data" in media_data
+    assert media_data["mime_type"] == "video/mp4"
+    assert isinstance(media_data["data"], bytes)
 
 
 @pytest.mark.asyncio
 async def test_process_unsupported_attachment(gemini_base_bot, unsupported_attachment):
     """Test processing an unsupported attachment type."""
-    image_data = gemini_base_bot._process_image_attachment(unsupported_attachment)
+    media_data = gemini_base_bot._process_media_attachment(unsupported_attachment)
 
-    assert image_data is None
+    assert media_data is None
 
 
 @pytest.mark.asyncio
