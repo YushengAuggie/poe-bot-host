@@ -16,7 +16,7 @@ sleep 5
 
 # Sync all bot settings with Poe
 echo "Syncing bot settings with Poe..."
-python sync_bot_settings.py --all
+/usr/local/bin/python3.11 sync_bot_settings.py --all
 
 echo "===== Deployment and sync completed ====="
 echo "✅ Bots are now deployed and settings are synced with Poe"
