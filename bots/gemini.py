@@ -1083,11 +1083,8 @@ class GeminiBaseBot(BaseBot):
             Settings response with rate card and cost label
         """
         # Set a flat fee of 50 points per message
-        rate_card = (
-            "# Gemini Usage Pricing\n\n"
-            "Each message costs a flat rate of [usd_milli_cents=50000] points."
-        )
-        cost_label = "[usd_milli_cents=50000]"
+        rate_card = "50 points / message"
+        cost_label = "Message Cost"
 
         # Include settings from the parent class
         settings = await super().get_settings(setting)
