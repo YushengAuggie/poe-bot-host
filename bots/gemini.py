@@ -3,7 +3,13 @@ import logging
 import time
 from typing import Any, AsyncGenerator, Dict, Optional, Union
 
-from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
+from fastapi_poe.types import (
+    MetaResponse,
+    PartialResponse,
+    QueryRequest,
+    SettingsRequest,
+    SettingsResponse,
+)
 
 from utils.api_keys import get_api_key
 from utils.base_bot import BaseBot
@@ -1066,6 +1072,31 @@ class GeminiBaseBot(BaseBot):
         except Exception as e:
             logger.error(f"Error with Gemini API: {str(e)}")
             yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
+
+    async def get_settings(self, setting: SettingsRequest) -> SettingsResponse:
+        """Get bot settings including the rate card.
+
+        Args:
+            setting: The settings request
+
+        Returns:
+            Settings response with rate card and cost label
+        """
+        # Set a flat fee of 50 points per message
+        rate_card = (
+            "# Gemini Usage Pricing\n\n"
+            "Each message costs a flat rate of [usd_milli_cents=50000] points."
+        )
+        cost_label = "[usd_milli_cents=50000]"
+
+        # Include settings from the parent class
+        settings = await super().get_settings(setting)
+
+        # Add rate card and cost label
+        settings.rate_card = rate_card
+        settings.cost_label = cost_label
+
+        return settings
 
     async def get_response(
         self, query: QueryRequest
