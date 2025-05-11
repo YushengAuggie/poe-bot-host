@@ -64,6 +64,13 @@ Poe Bot Host 由以下主要组件组织：
 | **BotFactory** | 自动发现并注册所有机器人 |
 | **bots/** | 可直接使用的机器人实现 |
 
+### 包含的机器人类型
+
+- **基础机器人**: Echo（回声）, Reverse（反转）, Uppercase（大写）
+- **高级机器人**: BotCaller（机器人调用器）, Weather（天气）, WebSearch（网络搜索）
+- **功能机器人**: Calculator（计算器）, FunctionCalling（函数调用）, FileAnalyzer（文件分析器）
+- **AI 机器人**: Gemini（支持多模态图像处理）
+
 
 ## 🔌 API 密钥与访问密钥管理
 
@@ -613,6 +620,12 @@ curl https://yourusername--poe-bots-fastapi-app.modal.run/bots
 3. **运行时错误**：
    - 使用调试模式运行：`./run_local.sh --debug`
    - 检查日志以获取特定错误消息
+
+4. **Gemini 图像处理问题**：
+   - 确保在环境中设置了 `GOOGLE_API_KEY`
+   - 验证图像格式是否被支持（JPEG、PNG、WebP、GIF）
+   - 查看 `gemini_image_testing.md` 获取测试程序
+   - 参考 `GEMINI_IMAGE_FIX.md` 了解内容访问修复细节
 
 ## 持续集成与质量保证
 

@@ -527,7 +527,7 @@ async def test_image_output_handling_poe_attachment(gemini_bot, sample_query_wit
         # Look for Poe attachment reference in responses
         has_poe_attachment = False
         for resp in responses:
-            if hasattr(resp, "text") and "![gemini_image.jpg][test_ref_123]" in resp.text:
+            if hasattr(resp, "text") and "![gemini_image_" in resp.text and "[test_ref_123]" in resp.text:
                 has_poe_attachment = True
 
         assert has_poe_attachment, "Response should include a Poe attachment reference"
@@ -593,11 +593,14 @@ async def test_image_output_different_mime_types(gemini_bot, sample_query_with_t
             async for response in gemini_bot.get_response(sample_query_with_text):
                 responses.append(response)
 
-            # Verify correct file extension was used
-            expected_filename = f"gemini_image.{expected_ext}"
+            # Verify correct file extension was used - filenames now include timestamp
+            expected_extension = f".{expected_ext}"
             has_correct_extension = False
             for resp in responses:
-                if hasattr(resp, "text") and f"![{expected_filename}][test_ref_123]" in resp.text:
+                if (hasattr(resp, "text") and
+                    "![gemini_image_" in resp.text and
+                    expected_extension in resp.text and
+                    "[test_ref_123]" in resp.text):
                     has_correct_extension = True
 
             assert (
@@ -728,15 +731,15 @@ async def test_multiple_images_in_response(gemini_bot, sample_query_with_text):
         # Verify both images were processed
         assert len(responses) > 0
 
-        # Should have both image references
+        # Should have both image references - filenames now include timestamp
         jpeg_image_ref = False
         png_image_ref = False
 
         for resp in responses:
             if hasattr(resp, "text"):
-                if "![gemini_image.jpg][ref_1]" in resp.text:
+                if "![gemini_image_" in resp.text and ".jpg][ref_1]" in resp.text:
                     jpeg_image_ref = True
-                if "![gemini_image.png][ref_2]" in resp.text:
+                if "![gemini_image_" in resp.text and ".png][ref_2]" in resp.text:
                     png_image_ref = True
 
         assert jpeg_image_ref, "Response should include the JPEG image reference"

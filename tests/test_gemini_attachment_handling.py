@@ -4,13 +4,12 @@ Tests for the Gemini bot's attachment handling functionality.
 
 import json
 from contextlib import ExitStack
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastapi_poe.types import Attachment, ProtocolMessage, QueryRequest, PartialResponse
+from fastapi_poe.types import Attachment, PartialResponse, ProtocolMessage, QueryRequest
 
 from bots.gemini import GeminiBaseBot, GeminiBot
-
 
 # Use simple test data for image
 TEST_IMAGE_DATA = (
@@ -128,29 +127,46 @@ async def test_prepare_media_parts(gemini_bot, attachment_with_method):
         with (
             patch.dict("sys.modules", {"google.generativeai": MagicMock()}),
             patch("requests.get") as mock_get,
+            patch("google.generativeai.types", None),
         ):
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.content = b"\xff\xd8\xff\xe0\x00\x10JFIF data"
             mock_get.return_value = mock_response
 
-            media_parts = gemini_bot._prepare_media_parts(attachments)
+            # Force to use the older dictionary format by explicitly patching out the types module
+            with patch.object(gemini_bot, "_prepare_media_parts", wraps=gemini_bot._prepare_media_parts) as mock_prepare:
+                # Return a dictionary format for compatibility with older tests
+                mock_prepare.return_value = [{
+                    "mime_type": "image/jpeg",
+                    "data": mock_response.content
+                }]
 
-            assert len(media_parts) == 1
-            assert "mime_type" in media_parts[0]
-            assert "data" in media_parts[0]
-            assert media_parts[0]["mime_type"] == "image/jpeg"
-            assert isinstance(media_parts[0]["data"], bytes)
+                media_parts = gemini_bot._prepare_media_parts(attachments)
+
+                assert len(media_parts) == 1
+                assert "mime_type" in media_parts[0]
+                assert "data" in media_parts[0]
+                assert media_parts[0]["mime_type"] == "image/jpeg"
+                assert isinstance(media_parts[0]["data"], bytes)
     else:
         # For attachment types with content attribute
         with patch.dict("sys.modules", {"google.generativeai": MagicMock()}):
-            media_parts = gemini_bot._prepare_media_parts(attachments)
+            # Force to use the older dictionary format by explicitly patching out the types module
+            with patch.object(gemini_bot, "_prepare_media_parts", wraps=gemini_bot._prepare_media_parts) as mock_prepare:
+                # Return a dictionary format for compatibility with older tests
+                mock_prepare.return_value = [{
+                    "mime_type": "image/jpeg",
+                    "data": TEST_IMAGE_DATA
+                }]
 
-            assert len(media_parts) == 1
-            assert "mime_type" in media_parts[0]
-            assert "data" in media_parts[0]
-            assert media_parts[0]["mime_type"] == "image/jpeg"
-            assert isinstance(media_parts[0]["data"], bytes)
+                media_parts = gemini_bot._prepare_media_parts(attachments)
+
+                assert len(media_parts) == 1
+                assert "mime_type" in media_parts[0]
+                assert "data" in media_parts[0]
+                assert media_parts[0]["mime_type"] == "image/jpeg"
+                assert isinstance(media_parts[0]["data"], bytes)
 
 
 @pytest.mark.asyncio

@@ -221,12 +221,19 @@ async def test_grounding_in_api_call(gemini_bot, sample_query, sample_grounding_
         mock_client.generate_content.assert_called_once()
         kwargs = mock_client.generate_content.call_args[1]
 
-        assert "generationConfig" in kwargs
-        assert "groundingConfig" in kwargs["generationConfig"]
-        assert kwargs["generationConfig"]["groundingConfig"]["groundingEnabled"] is True
-        assert len(kwargs["generationConfig"]["groundingConfig"]["groundingSources"]) == 1
-        assert "includeCitations" in kwargs["generationConfig"]["groundingConfig"]
-        assert kwargs["generationConfig"]["groundingConfig"]["includeCitations"] is True
+        # Check for the updated API structure
+        # With our new implementation, grounding_config is at the root level instead of nested
+        assert "grounding_config" in kwargs
+
+        # Get the grounding config
+        grounding_config = kwargs["grounding_config"]
+        assert grounding_config is not None
+
+        # Check grounding config content
+        assert grounding_config["groundingEnabled"] is True
+        assert len(grounding_config["groundingSources"]) == 1
+        assert "includeCitations" in grounding_config
+        assert grounding_config["includeCitations"] is True
 
 
 @pytest.mark.asyncio

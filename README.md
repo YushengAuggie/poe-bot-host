@@ -69,6 +69,7 @@ The Poe Bot Host is organized into these main components:
 - **Basic Bots**: Echo, Reverse, Uppercase
 - **Advanced Bots**: BotCaller, Weather, WebSearch
 - **Functional Bots**: Calculator, FunctionCalling, FileAnalyzer
+- **AI Bots**: Gemini (with multimodal image support)
 
 ## 🔌 API & Access Key Management
 
@@ -663,6 +664,12 @@ Always test your changes:
 3. **Runtime errors**:
    - Run with debug mode: `./run_local.sh --debug`
    - Check logs for specific error messages
+
+4. **Gemini image handling issues**:
+   - Ensure `GOOGLE_API_KEY` is set in your environment
+   - Verify that the image format is supported (JPEG, PNG, WebP, GIF)
+   - Check `gemini_image_testing.md` for testing procedures
+   - See `GEMINI_IMAGE_FIX.md` for details on content accessibility fix
 
 ## Continuous Integration and Quality Assurance
 

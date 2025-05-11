@@ -95,6 +95,7 @@ class GeminiBaseBot(BaseBot):
     bot_description = "Base Gemini model bot."
     supports_image_input = True  # Enable image input by default
     supports_video_input = True  # Enable video input by default
+    supports_audio_input = True  # Enable audio input by default
     supports_grounding = False  # Default value, will be set based on model
 
     def __init__(self, **kwargs):
@@ -103,6 +104,14 @@ class GeminiBaseBot(BaseBot):
         self.supported_image_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
         # Add support for video content types
         self.supported_video_types = ["video/mp4", "video/quicktime", "video/webm"]
+        # Add support for audio content types
+        self.supported_audio_types = [
+            "audio/mp3",
+            "audio/mpeg",
+            "audio/wav",
+            "audio/x-wav",
+            "audio/ogg",
+        ]
 
         # Image generation support - defaults to False unless overridden in subclass
         self.supports_image_generation = getattr(self, "supports_image_generation", False)
@@ -155,29 +164,72 @@ class GeminiBaseBot(BaseBot):
         try:
             if isinstance(query.query, list) and query.query:
                 last_message = query.query[-1]
+                logger.info(
+                    f"Message content: {last_message.content if hasattr(last_message, 'content') else 'No content'}"
+                )
+                logger.info(
+                    f"Message has attachments attribute: {hasattr(last_message, 'attachments')}"
+                )
+
                 if hasattr(last_message, "attachments") and last_message.attachments:
                     attachments = last_message.attachments
                     logger.info(f"Found {len(attachments)} attachments")
 
-            # Debug attachment details
+                    # Add more detailed debugging
+                    logger.info(f"Attachment types: {[type(att).__name__ for att in attachments]}")
+                    logger.info(f"Attachment dir: {[dir(att) for att in attachments]}")
+
+            # Debug attachment details with more information
             for i, attachment in enumerate(attachments):
-                logger.debug(
-                    f"Attachment {i}: type={getattr(attachment, 'content_type', 'unknown')}"
-                )
+                logger.info(f"Attachment {i} details:")
+
+                # Check all possible attributes
+                logger.info(f"  type={getattr(attachment, 'content_type', 'unknown')}")
+                logger.info(f"  name={getattr(attachment, 'name', 'unknown')}")
+
                 if hasattr(attachment, "url"):
-                    logger.debug(f"Attachment {i} URL: {attachment.url}")
+                    logger.info(f"  URL: {attachment.url}")
+
+                # Log more details for content attribute
                 if hasattr(attachment, "content"):
                     # The content attribute is added by Poe but not in type definitions
-                    content_size = len(attachment.content) if attachment.content else 0  # type: ignore
-                    logger.debug(f"Attachment {i} content size: {content_size} bytes")
+                    content = getattr(attachment, "content")
+                    content_size = len(content) if content else 0
+                    content_type = type(content).__name__
+                    logger.info(
+                        f"  content: found with type={content_type}, size={content_size} bytes"
+                    )
+                    if content_size > 0 and content_type == "str" and content_size > 50:
+                        # Might be base64, check beginning
+                        logger.info(f"  content preview: {content[:30]}...")
+
+                # Check __dict__ for content
+                if hasattr(attachment, "__dict__"):
+                    dict_content = attachment.__dict__.get("content")
+                    if dict_content is not None:
+                        logger.info(
+                            f"  __dict__ content: found with size={len(dict_content) if dict_content else 0} bytes"
+                        )
+
+            # Ensure content attribute is directly accessible for each attachment
+            for attachment in attachments:
+                if not hasattr(attachment, "content") and "content" in attachment.__dict__:
+                    # Add content attribute directly to the attachment object
+                    content = attachment.__dict__["content"]
+                    # Use setattr to make content accessible as attribute even for Pydantic models
+                    object.__setattr__(attachment, "content", content)
+                    logger.debug(f"Fixed attachment content accessibility: {attachment.name}")
 
         except Exception as e:
             logger.error(f"Error extracting attachments: {str(e)}")
+            import traceback
+
+            logger.error(traceback.format_exc())
 
         return attachments
 
     def _process_media_attachment(self, attachment) -> Optional[Dict[str, Any]]:
-        """Process a media (image or video) attachment for Gemini.
+        """Process a media (image, video, or audio) attachment for Gemini.
 
         Args:
             attachment: The attachment object
@@ -191,58 +243,172 @@ class GeminiBaseBot(BaseBot):
             return None
 
         # Log attachment details for debugging
-        logger.info(f"Processing attachment: {type(attachment).__name__}")
-        logger.info(f"Attachment attributes: {dir(attachment)}")
-        logger.info(
-            f"Attachment dict: {attachment.__dict__ if hasattr(attachment, '__dict__') else 'No __dict__'}"
-        )
-        content_type = getattr(attachment, "content_type", "unknown")
-        logger.info(f"Attachment content_type: {content_type}")
+        logger.debug("=== PROCESSING ATTACHMENT ===")
+        logger.debug(f"Attachment type: {type(attachment).__name__}")
+        logger.debug(f"Attachment attributes: {dir(attachment)}")
 
-        # Check if attachment is an image or video and supported
+        # Try to extract content_type
+        content_type = "unknown"
+        if hasattr(attachment, "content_type"):
+            content_type = attachment.content_type
+            logger.debug(f"Found content_type attribute: {content_type}")
+        else:
+            logger.debug("No content_type attribute found")
+
+        # Log more attachment details
+        if hasattr(attachment, "name"):
+            logger.debug(f"Attachment name: {attachment.name}")
+        if hasattr(attachment, "url"):
+            logger.debug(f"Attachment URL: {attachment.url}")
+
+        # Dump dict if available
+        if hasattr(attachment, "__dict__"):
+            logger.debug(f"Attachment __dict__: {attachment.__dict__}")
+
+        # Check if attachment is a supported media type
         is_supported_image = content_type in self.supported_image_types
         is_supported_video = content_type in self.supported_video_types
+        is_supported_audio = content_type in self.supported_audio_types
+
+        logger.debug(f"Is supported image: {is_supported_image}")
+        logger.debug(f"Is supported video: {is_supported_video}")
+        logger.debug(f"Is supported audio: {is_supported_audio}")
 
         if not hasattr(attachment, "content_type") or (
-            not is_supported_image and not is_supported_video
+            not is_supported_image and not is_supported_video and not is_supported_audio
         ):
             logger.warning(f"Unsupported attachment type: {content_type}")
             return None
 
-        logger.info(f"Attachment is supported {'image' if is_supported_image else 'video'}")
+        # Determine media type for logging
+        media_type = "image" if is_supported_image else "video" if is_supported_video else "audio"
+        logger.debug(f"Attachment is supported {media_type}")
+
+        # FIXED: If attachment has content in __dict__ but not as attribute,
+        # make it accessible as attribute (fix for Pydantic models in the fastapi-poe library)
+        if (
+            (not hasattr(attachment, "content") or getattr(attachment, "content", None) is None)
+            and hasattr(attachment, "__dict__")
+            and "content" in attachment.__dict__
+        ):
+            logger.debug("Fixing content attribute accessibility")
+            try:
+                content_from_dict = attachment.__dict__["content"]
+                # Use object.__setattr__ to bypass Pydantic validation
+                object.__setattr__(attachment, "content", content_from_dict)
+                logger.debug("Successfully fixed content attribute accessibility")
+            except Exception as e:
+                logger.warning(f"Failed to fix content attribute accessibility: {e}")
+
+        # Track what method we used to extract content
+        content_extraction_method = "none"
+        content = None
 
         # First try accessing content directly via normal attribute access
         if hasattr(attachment, "content") and getattr(attachment, "content", None):
-            logger.info("Accessing attachment content via direct attribute")
-            return {"mime_type": content_type, "data": getattr(attachment, "content")}
+            content = getattr(attachment, "content")
+            content_extraction_method = "direct_attribute"
+            logger.debug(
+                f"Accessing content via direct attribute with type: {type(content).__name__}"
+            )
+            logger.debug(f"Content size: {len(content) if content else 0} bytes")
+
+            if isinstance(content, str):
+                logger.debug(f"Content string preview: {content[:30]}...")
+
+            # Check if content is base64-encoded string (CLI tool sends base64 strings)
+            if isinstance(content, str) and content.startswith(("/", "+", "i")):
+                try:
+                    import base64
+
+                    logger.debug("Converting base64 string to bytes")
+                    binary_data = base64.b64decode(content)
+                    logger.debug(f"Decoded binary data size: {len(binary_data)} bytes")
+                    content = binary_data
+                    content_extraction_method = "direct_attribute_base64"
+                except Exception as e:
+                    logger.error(f"Error decoding base64: {str(e)}")
+                    # Continue to try other methods
 
         # Then try via __dict__ to satisfy type checker (content is added by Poe but not in type definition)
         elif hasattr(attachment, "__dict__") and attachment.__dict__.get("content"):
-            logger.info("Accessing attachment content via __dict__")
-            return {"mime_type": content_type, "data": attachment.__dict__["content"]}
+            content = attachment.__dict__["content"]
+            content_extraction_method = "dict_attribute"
+            logger.debug(f"Accessing content via __dict__ with type: {type(content).__name__}")
+            logger.debug(f"Content size: {len(content) if content else 0} bytes")
+
+            # Check if content is base64-encoded string
+            if isinstance(content, str) and content.startswith(("/", "+", "i")):
+                try:
+                    import base64
+
+                    logger.debug("Converting base64 string to bytes")
+                    binary_data = base64.b64decode(content)
+                    logger.debug(f"Decoded binary data size: {len(binary_data)} bytes")
+                    content = binary_data
+                    content_extraction_method = "dict_attribute_base64"
+                except Exception as e:
+                    logger.error(f"Error decoding base64 from __dict__: {str(e)}")
 
         # Look for _content attribute which some Poe clients might use
         elif hasattr(attachment, "_content") and getattr(attachment, "_content", None):
-            logger.info("Accessing attachment content via _content attribute")
-            return {"mime_type": content_type, "data": getattr(attachment, "_content")}
+            content = getattr(attachment, "_content")
+            content_extraction_method = "underscore_attribute"
+            logger.debug(
+                f"Accessing content via _content attribute with type: {type(content).__name__}"
+            )
+            logger.debug(f"Content size: {len(content) if content else 0} bytes")
+
+            # Check if content is base64-encoded string
+            if isinstance(content, str) and content.startswith(("/", "+", "i")):
+                try:
+                    import base64
+
+                    logger.debug("Converting base64 string to bytes")
+                    binary_data = base64.b64decode(content)
+                    logger.debug(f"Decoded binary data size: {len(binary_data)} bytes")
+                    content = binary_data
+                    content_extraction_method = "underscore_attribute_base64"
+                except Exception as e:
+                    logger.error(f"Error decoding base64 from _content: {str(e)}")
 
         # Try with url if content is not available
         elif hasattr(attachment, "url") and attachment.url:
-            logger.info(f"Downloading attachment from URL: {attachment.url}")
+            logger.debug(f"Downloading attachment from URL: {attachment.url}")
             try:
                 import requests
 
-                response = requests.get(attachment.url, timeout=20)  # Longer timeout for video
-                if response.status_code == 200:
-                    logger.info(f"Successfully downloaded {len(response.content)} bytes from URL")
-                    return {"mime_type": content_type, "data": response.content}
+                # Handle file:// URLs as a special case (used by CLI tool)
+                if attachment.url.startswith("file://"):
+                    logger.debug("Handling file:// URL - checking for content elsewhere")
+                    # We expect content to be available in another field, but include a fallback
+                    if not content:
+                        logger.debug("No content found for file:// URL - will return None")
+                        return None
                 else:
-                    logger.warning(f"Failed to download from URL: HTTP {response.status_code}")
+                    # Normal URL handling
+                    # Adjust timeout based on media type - longer for video/audio
+                    timeout = 30 if is_supported_video or is_supported_audio else 20
+                    response = requests.get(attachment.url, timeout=timeout)
+                    if response.status_code == 200:
+                        content = response.content
+                        content_extraction_method = "url_download"
+                        logger.debug(f"Successfully downloaded {len(content)} bytes from URL")
+                    else:
+                        logger.warning(f"Failed to download from URL: HTTP {response.status_code}")
             except Exception as e:
                 logger.warning(f"Failed to download media from URL: {str(e)}")
 
-        logger.error("Could not access attachment content through any method")
-        return None
+        if not content:
+            logger.error("Could not access attachment content through any method")
+            return None
+
+        logger.debug(f"Successfully extracted content using method: {content_extraction_method}")
+        logger.debug(f"Final content type: {type(content).__name__}")
+        logger.debug(f"Final content size: {len(content)} bytes")
+        logger.debug("=== END PROCESSING ATTACHMENT ===")
+
+        return {"mime_type": content_type, "data": content}
 
     async def _handle_bot_info_request(self) -> PartialResponse:
         """Handle a request for bot information.
@@ -254,16 +420,18 @@ class GeminiBaseBot(BaseBot):
         metadata["model_name"] = self.model_name
         metadata["supports_image_input"] = self.supports_image_input
         metadata["supports_video_input"] = self.supports_video_input
+        metadata["supports_audio_input"] = self.supports_audio_input
         metadata["supports_image_generation"] = self.supports_image_generation
         metadata["supports_grounding"] = self.supports_grounding
         metadata["grounding_enabled"] = self.grounding_enabled
         metadata["citations_enabled"] = self.citations_enabled
         metadata["supported_image_types"] = self.supported_image_types
         metadata["supported_video_types"] = self.supported_video_types
+        metadata["supported_audio_types"] = self.supported_audio_types
         return PartialResponse(text=json.dumps(metadata, indent=2))
 
     def _prepare_media_parts(self, attachments: list) -> list:
-        """Process media attachments (images and videos) into parts for Gemini API.
+        """Process media attachments (images, videos, audio) into parts for Gemini API.
 
         Args:
             attachments: List of attachments from the query
@@ -271,44 +439,113 @@ class GeminiBaseBot(BaseBot):
         Returns:
             List of media parts formatted for Gemini API
         """
-        logger.info(f"Preparing media parts from {len(attachments)} attachments")
+        logger.debug("=== PREPARING MEDIA PARTS ===")
+        logger.debug(f"Processing {len(attachments)} attachments")
         media_parts = []
 
         for i, attachment in enumerate(attachments):
-            logger.info(f"Processing attachment {i+1} of {len(attachments)}")
+            logger.debug(f"Processing attachment {i+1} of {len(attachments)}")
             media_data = self._process_media_attachment(attachment)
 
             if media_data:
-                logger.info(f"Got media data with mime type: {media_data['mime_type']}")
-                logger.info(f"Media data size: {len(media_data['data'])} bytes")
+                logger.debug(f"Got media data with mime type: {media_data['mime_type']}")
+                logger.debug(f"Media data size: {len(media_data['data'])} bytes")
+                logger.debug(f"Media data type: {type(media_data['data'])}")
 
+                format_method = "unknown"
                 try:
-                    # We only need to validate the import is available
-                    # Direct import used to verify the package is installed
-                    _ = __import__("google.generativeai")
+                    # Try to import the google.generativeai.types module for advanced formatting
+                    has_types_module = False
+                    try:
+                        import google.generativeai
 
-                    formatted_part = {
-                        "mime_type": media_data["mime_type"],
-                        "data": media_data["data"],
-                    }
+                        logger.debug(
+                            f"Google Generative AI version: {getattr(google.generativeai, '__version__', 'unknown')}"
+                        )
 
-                    media_parts.append(formatted_part)
-                    logger.info(f"Successfully added attachment {i+1} to media parts")
+                        # Check if types module exists and has Part.from_bytes attribute
+                        if hasattr(google.generativeai, "types"):
+                            types_module = google.generativeai.types
+                            logger.debug(f"Found types module: {types_module}")
+
+                            if hasattr(types_module, "Part"):
+                                part_class = types_module.Part
+                                logger.debug(f"Found Part class: {part_class}")
+
+                                if hasattr(part_class, "from_bytes"):
+                                    logger.debug("Found Part.from_bytes method")
+                                    has_types_module = True
+                                else:
+                                    logger.debug("Part class doesn't have from_bytes method")
+                            else:
+                                logger.debug("types module doesn't have Part class")
+                        else:
+                            logger.debug("google.generativeai doesn't have types module")
+
+                    except (ImportError, AttributeError) as e:
+                        logger.debug(
+                            f"Error importing/checking google.generativeai.types: {str(e)}"
+                        )
+                        has_types_module = False
+
+                    if has_types_module:
+                        from google.generativeai import types
+
+                        try:
+                            # Create a proper Part object from bytes
+                            logger.debug("Attempting to create Part from bytes")
+                            part = types.Part.from_bytes(  # type: ignore
+                                data=media_data["data"], mime_type=media_data["mime_type"]
+                            )
+
+                            logger.debug(f"Created Part object: {type(part).__name__}")
+                            media_parts.append(part)
+                            format_method = "types.Part"
+                            logger.debug(f"Successfully added attachment {i+1} using types.Part")
+                        except Exception as part_error:
+                            logger.debug(f"Error creating Part object: {str(part_error)}")
+                            # Fallback to dictionary format
+                            has_types_module = False
+
+                    if not has_types_module:
+                        # Fall back to dictionary format if types module is not available
+                        logger.debug("Using dictionary format for media part")
+
+                        # Format according to Google Gemini API requirements
+                        formatted_part = {
+                            "inline_data": {
+                                "mime_type": media_data["mime_type"],
+                                "data": media_data["data"],
+                            }
+                        }
+
+                        logger.debug(f"Created dictionary part: {list(formatted_part.keys())}")
+                        logger.debug(
+                            f"inline_data keys: {list(formatted_part['inline_data'].keys())}"
+                        )
+                        media_parts.append(formatted_part)
+                        format_method = "dictionary"
+                        logger.debug(f"Successfully added attachment {i+1} using dictionary format")
 
                     # Log the type of media we're processing
                     if media_data["mime_type"].startswith("video/"):
-                        logger.info(f"Processing video attachment: {media_data['mime_type']}")
+                        logger.debug(f"Processed video attachment: {media_data['mime_type']}")
+                    elif media_data["mime_type"].startswith("audio/"):
+                        logger.debug(f"Processed audio attachment: {media_data['mime_type']}")
                     else:
-                        logger.info(f"Processing image attachment: {media_data['mime_type']}")
+                        logger.debug(f"Processed image attachment: {media_data['mime_type']}")
 
-                except ImportError as e:
-                    logger.error(
-                        f"Could not import google.generativeai for media processing: {str(e)}"
-                    )
+                except Exception as e:
+                    logger.error(f"Failed to format media for Gemini API: {str(e)}")
+                    import traceback
+
+                    logger.error(traceback.format_exc())
             else:
                 logger.warning(f"Failed to process attachment {i+1}, no media data returned")
 
-        logger.info(f"Prepared {len(media_parts)} media parts total")
+        logger.debug(f"Final media parts: {len(media_parts)} total")
+        logger.debug(f"Media parts types: {[type(part).__name__ for part in media_parts]}")
+        logger.debug("=== END PREPARING MEDIA PARTS ===")
         return media_parts
 
     # For backward compatibility with tests
@@ -487,8 +724,12 @@ class GeminiBaseBot(BaseBot):
             for i, part in enumerate(media_parts):
                 try:
                     logger.info(f"Formatting media part {i+1}")
-                    formatted_part = {"inline_data": part}
-                    formatted_parts.append(formatted_part)
+                    # Check if the part already has inline_data structure
+                    if isinstance(part, dict) and "inline_data" in part:
+                        formatted_parts.append(part)  # Use as is
+                    else:
+                        formatted_part = {"inline_data": part}
+                        formatted_parts.append(formatted_part)
                     logger.info(f"Media part {i+1} formatted successfully")
                 except Exception as e:
                     logger.error(f"Error formatting media part {i+1}: {str(e)}")
@@ -872,7 +1113,20 @@ class GeminiBaseBot(BaseBot):
         Yields:
             Responses as PartialResponse objects
         """
-        logger.info("Processing multimodal content")
+        logger.info("=== PROCESSING MULTIMODAL CONTENT ===")
+        logger.info(f"Client model: {getattr(client, 'model_name', 'unknown')}")
+        logger.info(f"Client type: {type(client).__name__}")
+        logger.info(f"Contents length: {len(contents)} items")
+
+        # Check for gemini client version
+        try:
+            import google.generativeai as genai
+
+            logger.info(f"Google Generative AI version: {getattr(genai, '__version__', 'unknown')}")
+        except ImportError:
+            logger.info("Google Generative AI package not available")
+        except Exception as e:
+            logger.info(f"Error checking genai version: {str(e)}")
 
         # Prepare grounding configuration if enabled
         grounding_config = self._prepare_grounding_config()
@@ -880,24 +1134,32 @@ class GeminiBaseBot(BaseBot):
             logger.info(
                 f"Using grounding with {len(grounding_config.get('groundingSources', []))} sources for multimodal content"
             )
+        else:
+            logger.info("No grounding configuration used")
 
         # Configure generation with grounding if available
         generation_config: Dict[str, Any] = {}
+        logger.info("Initializing generation_config")
 
         # Apply grounding configuration if available
         if grounding_config:
             try:
                 # Just make sure the module is available
                 _ = __import__("google.generativeai")
+                logger.info("google.generativeai successfully imported")
 
                 # Add grounding directly to the generation_config dict
                 # In the API, this nests under generation_config
                 generation_config["generation_config"] = {}
+                logger.info("Added empty generation_config to dict")
 
                 # Add grounding to the generation config dictionary
                 generation_config["grounding_config"] = grounding_config
+                logger.info("Added grounding_config to generation_config")
             except ImportError:
                 logger.warning("Failed to import google.generativeai for grounding config")
+            except Exception as e:
+                logger.warning(f"Error setting up grounding configuration: {str(e)}")
 
         try:
             # Check if we have valid contents before sending to the API
@@ -908,46 +1170,281 @@ class GeminiBaseBot(BaseBot):
 
             # Log content structure (excluding binary data)
             safe_contents = []
-            for item in contents:
+            logger.info("Examining content structure:")
+            for i, item in enumerate(contents):
+                logger.info(f"Content item {i+1} type: {type(item).__name__}")
+
+                if isinstance(item, dict):
+                    logger.info(f"Content item {i+1} keys: {list(item.keys())}")
+
                 if "inline_data" in item:
                     # Don't log binary data, just its presence and size
                     inline_data = item["inline_data"]
-                    mime_type = inline_data.get("mime_type", "unknown")
-                    data_size = len(inline_data.get("data", b"")) if "data" in inline_data else 0
-                    safe_contents.append(
-                        {"inline_data": {"mime_type": mime_type, "data_size": data_size}}
-                    )
-                else:
-                    safe_contents.append(item)
+                    logger.info(f"  inline_data type: {type(inline_data).__name__}")
 
-            logger.info(f"Sending multimodal content to Gemini: {safe_contents}")
+                    if isinstance(inline_data, dict):
+                        logger.info(f"  inline_data keys: {list(inline_data.keys())}")
+
+                    mime_type = inline_data.get("mime_type", "unknown")
+                    data = inline_data.get("data", None)
+                    data_type = type(data).__name__ if data is not None else "None"
+                    data_size = len(data) if data is not None else 0
+
+                    logger.info(f"  mime_type: {mime_type}")
+                    logger.info(f"  data type: {data_type}")
+                    logger.info(f"  data size: {data_size} bytes")
+
+                    safe_contents.append(
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data_size": data_size,
+                                "data_type": data_type,
+                            }
+                        }
+                    )
+                elif "text" in item:
+                    logger.info(f"  text content: {item['text'][:50]}...")
+                    safe_contents.append(item)
+                else:
+                    logger.info(f"  Unknown item format: {item}")
+                    safe_contents.append({"unknown_format": str(type(item))})
+
+            logger.info(f"Final safe content structure for logging: {safe_contents}")
+
+            # Check API capabilities
+            logger.info("Checking Google Generative AI capabilities")
+            has_types_module = False
+            has_part_from_bytes = False
+
+            try:
+                import google.generativeai as genai
+
+                logger.info(
+                    f"Successfully imported google.generativeai (version: {getattr(genai, '__version__', 'unknown')})"
+                )
+
+                if hasattr(genai, "types"):
+                    logger.info("Found types module")
+                    has_types_module = True
+
+                    if hasattr(genai.types, "Part") and hasattr(genai.types.Part, "from_bytes"):
+                        logger.info("Found Part.from_bytes method")
+                        has_part_from_bytes = True
+                    else:
+                        logger.info("Part.from_bytes method not found")
+                else:
+                    logger.info("types module not found in google.generativeai")
+            except ImportError:
+                logger.info("Failed to import google.generativeai")
+            except Exception as e:
+                logger.info(f"Error checking Google Generative AI: {str(e)}")
 
             # For multimodal content with images or videos, we need a complete response for proper processing
-            logger.info("Making API call to Gemini for multimodal content")
-            response = client.generate_content(contents, **generation_config)
-            logger.info(f"Received response of type: {type(response).__name__}")
+            try:
+                # Check if we can use types.Part (newer API)
+                if has_types_module and has_part_from_bytes:
+                    logger.info("=== USING PART OBJECT FORMAT ===")
+                    from google.generativeai import types
+
+                    # Convert to Part objects for new Google API requirements if needed
+                    google_compatible_contents = []
+                    for i, item in enumerate(contents):
+                        logger.info(f"Processing content item {i+1} for Part conversion")
+
+                        if "inline_data" in item:
+                            # Check if we have nested inline_data
+                            data_source = item["inline_data"]
+                            logger.info(f"Found inline_data in item {i+1}")
+
+                            # Extract data and mime_type correctly, handling both formats
+                            if (
+                                isinstance(data_source, dict)
+                                and "data" in data_source
+                                and "mime_type" in data_source
+                            ):
+                                # Standard format
+                                data = data_source["data"]
+                                mime_type = data_source["mime_type"]
+                                logger.info(f"Standard format found with mime_type: {mime_type}")
+                            else:
+                                # This shouldn't happen with our fixes, but just in case
+                                logger.warning(
+                                    f"Unexpected inline_data format for item {i+1}, trying to recover..."
+                                )
+                                # Try to find data and mime_type in nested structure
+                                if isinstance(data_source, dict) and "inline_data" in data_source:
+                                    nested = data_source["inline_data"]
+                                    data = nested.get("data", b"")
+                                    mime_type = nested.get("mime_type", "application/octet-stream")
+                                    logger.info(
+                                        f"Recovered from nested format with mime_type: {mime_type}"
+                                    )
+                                else:
+                                    # Can't parse the structure, skip this item
+                                    logger.error(
+                                        f"Cannot process malformed inline_data for item {i+1}: {data_source}"
+                                    )
+                                    continue
+
+                            # Create a proper Part from bytes for media
+                            try:
+                                logger.info(
+                                    f"Creating Part.from_bytes for {mime_type} content of size {len(data)} bytes"
+                                )
+                                # Use type: ignore for the dynamic type
+                                part = types.Part.from_bytes(  # type: ignore
+                                    data=data, mime_type=mime_type
+                                )
+                                logger.info(
+                                    f"Successfully created Part object of type: {type(part).__name__}"
+                                )
+                                google_compatible_contents.append(part)
+                                logger.info(
+                                    f"Added Part for {mime_type} content to compatible contents"
+                                )
+                            except Exception as e:
+                                logger.error(f"Error creating Part object for item {i+1}: {str(e)}")
+                                logger.error("Skipping this item and continuing")
+                                # Try to continue with other items
+                        elif "text" in item:
+                            # Add text content
+                            text_content = item["text"]
+                            logger.info(f"Adding text content: {text_content[:50]}...")
+                            google_compatible_contents.append(text_content)
+                            logger.info("Added text content to compatible contents")
+                        else:
+                            logger.warning(f"Unknown content format for item {i+1}, skipping")
+
+                    logger.info(
+                        f"Final google_compatible_contents has {len(google_compatible_contents)} items"
+                    )
+                    logger.info(
+                        f"Content types: {[type(item).__name__ for item in google_compatible_contents]}"
+                    )
+                    logger.info("Making API call to Gemini with types.Part format")
+
+                    # Log generation config
+                    logger.info(f"Generation config: {generation_config}")
+
+                    # Make the API call
+                    response = client.generate_content(
+                        google_compatible_contents, **generation_config
+                    )
+                    logger.info("API call with Part objects completed successfully")
+                else:
+                    # Fall back to dictionary format
+                    logger.info("=== USING DICTIONARY FORMAT ===")
+                    logger.info(
+                        f"Making API call with dictionary format (has_types_module={has_types_module}, has_part_from_bytes={has_part_from_bytes})"
+                    )
+                    logger.info("Making API call to Gemini for multimodal content")
+
+                    # Log generation config
+                    logger.info(f"Generation config: {generation_config}")
+
+                    # Make the API call
+                    response = client.generate_content(contents, **generation_config)
+                    logger.info("API call with dictionary format completed successfully")
+            except (ImportError, AttributeError) as e:
+                # Fall back to old format if types module is not available
+                logger.info(f"Falling back to dictionary format due to: {str(e)}")
+                logger.info(
+                    "Making API call to Gemini for multimodal content with dictionary format"
+                )
+
+                # Log generation config
+                logger.info(f"Generation config: {generation_config}")
+
+                # Make the API call
+                response = client.generate_content(contents, **generation_config)
+                logger.info("API call with dictionary format completed successfully")
+
+            logger.info("=== RECEIVED RESPONSE ===")
+            logger.info(f"Response type: {type(response).__name__}")
+            logger.info(f"Response dir: {dir(response)}")
 
             # Debug response structure
             if hasattr(response, "text"):
                 logger.info(f"Response has text attribute: {response.text[:100]}...")
+            else:
+                logger.info("Response does not have text attribute")
+
             if hasattr(response, "parts"):
                 logger.info(f"Response has {len(response.parts)} parts")
 
+                # Log more details about parts
+                for i, part in enumerate(response.parts):
+                    logger.info(f"Part {i+1} type: {type(part).__name__}")
+                    logger.info(f"Part {i+1} dir: {dir(part)}")
+
+                    if hasattr(part, "text"):
+                        logger.info(f"Part {i+1} has text: {part.text[:100]}...")
+
+                    if hasattr(part, "inline_data"):
+                        mime_type = getattr(part.inline_data, "mime_type", "unknown")
+                        logger.info(f"Part {i+1} has inline_data with mime_type: {mime_type}")
+            else:
+                logger.info("Response does not have parts attribute")
+
+            logger.info("=== HANDLING RESPONSE CONTENT ===")
+            # Track if we yielded anything for debug purposes
+            response_yielded = False
+            yield_count = 0
+
             # Process any images or videos in the response
+            logger.info("Processing media in response through _process_media_in_response")
             async for partial_response in self._process_media_in_response(response, query):
+                logger.info(
+                    f"Got partial response from _process_media_in_response: {partial_response.text[:100] if hasattr(partial_response, 'text') else 'No text'}"
+                )
+                response_yielded = True
+                yield_count += 1
                 yield partial_response
 
+            logger.info(f"Media response processing complete, yielded {yield_count} responses")
+
             # If no response was yielded above and we have text, yield it now
-            if hasattr(response, "text") and response.text:
+            if not response_yielded and hasattr(response, "text") and response.text:
                 # Check if we've already yielded this text from parts
-                logger.info("Yielding text response")
+                logger.info(
+                    f"No response yielded yet, yielding direct text response: {response.text[:100]}..."
+                )
                 yield PartialResponse(text=response.text)
+                yield_count += 1
+
+            # For debugging - check if we yielded anything at all
+            if yield_count == 0:
+                logger.warning("No content was yielded from multimodal processing!")
+                # Check if response contains any indication of error or rejection
+                error_found = False
+
+                if hasattr(response, "text") and response.text:
+                    text = response.text.lower()
+                    if (
+                        ("cannot" in text and "image" in text)
+                        or "sorry" in text
+                        or "unable" in text
+                    ):
+                        logger.warning(f"Found potential rejection message: {response.text[:200]}")
+                        error_found = True
+
+                if not error_found:
+                    logger.info("No error message found in response, yielding generic message")
+                    yield PartialResponse(
+                        text="I received your image but couldn't process it properly. The model may not fully support this kind of image analysis."
+                    )
+
+            logger.info(f"Total responses yielded: {yield_count}")
 
         except Exception as e:
             logger.error(f"Error processing multimodal content: {str(e)}", exc_info=True)
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             yield PartialResponse(text=f"Error processing image: {str(e)}")
 
-        logger.info("Completed multimodal content processing")
+        logger.info("=== COMPLETED MULTIMODAL CONTENT PROCESSING ===")
 
     async def _process_user_query(
         self, client, user_message: str, query: QueryRequest
@@ -1073,11 +1570,11 @@ class GeminiBaseBot(BaseBot):
             logger.error(f"Error with Gemini API: {str(e)}")
             yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
 
-    async def get_settings(self, setting: SettingsRequest) -> SettingsResponse:
+    async def get_settings(self, settings_request: SettingsRequest) -> SettingsResponse:
         """Get bot settings including the rate card.
 
         Args:
-            setting: The settings request
+            settings_request: The settings request
 
         Returns:
             Settings response with rate card and cost label
@@ -1087,7 +1584,7 @@ class GeminiBaseBot(BaseBot):
         cost_label = "Message Cost"
 
         # Include settings from the parent class
-        settings = await super().get_settings(setting)
+        settings = await super().get_settings(settings_request)
 
         # Add rate card and cost label
         settings.rate_card = rate_card
@@ -1113,15 +1610,84 @@ class GeminiBaseBot(BaseBot):
             # Log the extracted message (simplified logging)
             logger.debug(f"[{self.bot_name}] Received message: {user_message}")
 
+            # Check if the API key exists
+            api_key = get_api_key("GOOGLE_API_KEY")
+            if not api_key:
+                logger.error("GOOGLE_API_KEY not found in environment variables")
+                yield PartialResponse(
+                    text="Error: Google API key is not configured. Please set the GOOGLE_API_KEY environment variable."
+                )
+                return
+            else:
+                logger.info(f"Found GOOGLE_API_KEY in environment (starts with: {api_key[:3]}...)")
+
             # Handle bot info request
             if user_message.lower().strip() == "bot info":
                 yield await self._handle_bot_info_request()
                 return
 
-            # Initialize client for this specific model
-            client = get_client(self.model_name)
+            # Debug query structure
+            logger.debug(f"Query type: {type(query)}")
+            logger.debug(f"Query attributes: {dir(query)}")
+            logger.debug(f"Query has query attribute: {hasattr(query, 'query')}")
+
+            # Check for multimodal content in more detail
+            has_attachments = False
+            if hasattr(query, "query"):
+                logger.debug(f"Query.query type: {type(query.query)}")
+                if isinstance(query.query, list):
+                    logger.debug(f"Query.query length: {len(query.query)}")
+                    if query.query:
+                        last_msg = query.query[-1]
+                        logger.debug(f"Last message type: {type(last_msg)}")
+                        logger.debug(f"Last message attributes: {dir(last_msg)}")
+                        logger.debug(
+                            f"Last message has attachments: {hasattr(last_msg, 'attachments')}"
+                        )
+                        if hasattr(last_msg, "attachments"):
+                            logger.debug(f"Attachments: {last_msg.attachments}")
+                            logger.debug(f"Attachments type: {type(last_msg.attachments)}")
+                            logger.debug(
+                                f"Attachments length: {len(last_msg.attachments) if last_msg.attachments else 0}"
+                            )
+                            if last_msg.attachments:
+                                has_attachments = True
+                                logger.debug("ATTACHMENT FOUND!")
+
+            # For multimodal content, we need a different model that supports images
+            if has_attachments:
+                logger.debug("Using multimodal content flow")
+                # Check if we have a specific multimodal model defined
+                multimodal_model = getattr(self, "multimodal_model_name", None)
+                logger.debug(f"Multimodal model attribute: {multimodal_model}")
+
+                if multimodal_model:
+                    logger.info(
+                        f"Using multimodal model: {multimodal_model} for attachment handling"
+                    )
+                    client = get_client(multimodal_model)
+                    logger.debug(f"Got multimodal client: {client is not None}")
+                    if client is None:
+                        logger.warning(
+                            f"Failed to initialize multimodal client: {multimodal_model}, falling back to default model"
+                        )
+                        # Fall back to default model
+                        client = get_client(self.model_name)
+                else:
+                    # Use default model
+                    logger.debug(
+                        f"No multimodal_model_name defined, using default: {self.model_name}"
+                    )
+                    client = get_client(self.model_name)
+            else:
+                # Use default model for text-only messages
+                logger.debug(f"Using default model for text-only: {self.model_name}")
+                client = get_client(self.model_name)
+
             if client is None:
-                yield PartialResponse(text="Error: Google API key is not configured.")
+                yield PartialResponse(
+                    text="Error: Failed to initialize Gemini client with Google API key."
+                )
                 return
 
             try:
@@ -1151,6 +1717,8 @@ class Gemini20FlashBot(GeminiBaseBot):
     """Gemini 2.0 Flash model - optimized for speed and efficiency."""
 
     model_name = "gemini-2.0-flash"
+    # Override model for images/multimodal content
+    multimodal_model_name = "gemini-1.5-flash-latest"
     bot_name = "Gemini20FlashBot"
     bot_description = (
         "Fast and efficient Gemini 2.0 Flash model, optimized for speed and next-gen features."
@@ -1179,7 +1747,7 @@ class Gemini25FlashBot(GeminiBaseBot):
 class Gemini25ProExpBot(GeminiBaseBot):
     """Gemini 2.5 Pro Experimental - premium model for complex reasoning."""
 
-    model_name = "gemini-2.5-pro-exp-03-25"
+    model_name = "gemini-2.5-pro-preview-05-06"
     bot_name = "Gemini25ProExpBot"
     bot_description = "Premium Gemini 2.5 Pro Experimental model for enhanced reasoning, multimodal understanding, and advanced coding."
 
