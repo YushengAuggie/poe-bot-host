@@ -28,8 +28,10 @@ Usage:
 """
 
 import argparse
+import base64
 import json
 import logging
+import mimetypes
 import os
 import sys
 from typing import Any, Dict, Optional
@@ -39,6 +41,7 @@ import requests
 # Add the project root to path so utils module can be found
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# ruff: noqa: E402
 from utils.config import settings
 
 # Set up logger
@@ -154,7 +157,6 @@ def test_bot_api(
         if attachment_path:
             try:
                 # Get file type from extension
-                import mimetypes
                 content_type, _ = mimetypes.guess_type(attachment_path)
                 if not content_type:
                     content_type = "application/octet-stream"
@@ -164,11 +166,9 @@ def test_bot_api(
                     file_content = f.read()
 
                 # Encode binary data as base64 for JSON transport
-                import base64
-                file_content_b64 = base64.b64encode(file_content).decode('utf-8')
+                file_content_b64 = base64.b64encode(file_content).decode("utf-8")
 
                 # Get filename
-                import os
                 filename = os.path.basename(attachment_path)
 
                 # Add attachment to message
@@ -177,13 +177,27 @@ def test_bot_api(
                         "url": f"file://{filename}",  # Dummy URL, not used by server
                         "name": filename,
                         "content_type": content_type,
-                        "content": file_content_b64
+                        "content": file_content_b64,
                     }
                 ]
-                logger.debug(f"Added attachment: {filename} ({content_type})")
+
+                # For debugging - print more details but not the whole base64 content
+                content_preview = (
+                    file_content_b64[:30] + "..."
+                    if len(file_content_b64) > 30
+                    else file_content_b64
+                )
+                logger.debug(
+                    f"Added attachment: {filename} ({content_type}), size: {len(file_content)} bytes, content preview: {content_preview}"
+                )
             except Exception as e:
                 logger.error(f"Error adding attachment: {str(e)}")
-                return {"status_code": 0, "error": f"Error adding attachment: {str(e)}", "content": None, "content_type": "error"}
+                return {
+                    "status_code": 0,
+                    "error": f"Error adding attachment: {str(e)}",
+                    "content": None,
+                    "content_type": "error",
+                }
 
         response = requests.post(
             url,
@@ -384,7 +398,9 @@ def main():
                 print(f"\nTesting bot: {bot_to_test}")
                 print(f"Message: {args.message}")
 
-            result = test_bot_api(base_url, bot_to_test, args.message, attachment_path=args.attachment)
+            result = test_bot_api(
+                base_url, bot_to_test, args.message, attachment_path=args.attachment
+            )
 
             if args.format == "json":
                 print(json.dumps({"result": result}, indent=2))
