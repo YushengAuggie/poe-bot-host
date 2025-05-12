@@ -163,11 +163,12 @@ def get_bot_access_key(bot_name: str) -> Optional[str]:
     return None
 
 
-async def sync_bot_via_fastapi_poe(bot_name: str) -> bool:
+async def sync_bot_via_fastapi_poe(bot_name: str, rate_card: Optional[int] = None) -> bool:
     """Sync a bot's settings using fastapi-poe's sync_bot_settings.
 
     Args:
         bot_name: Name of the bot to sync
+        rate_card: Optional rate card value in points to set for the bot
 
     Returns:
         True if successful, False otherwise
@@ -213,10 +214,26 @@ async def sync_bot_via_fastapi_poe(bot_name: str) -> bool:
 
         # Check if the function exists
         key_preview = access_key[:4] + "..." if access_key else "None"
-        logger.info(
-            f"Syncing settings for {bot_name} using fastapi_poe.sync_bot_settings() with key: {key_preview}"
-        )
-        fp_sync_bot_settings(bot_name=bot_name, access_key=access_key)
+
+        # Prepare message based on rate card setting
+        if rate_card is not None:
+            logger.info(
+                f"Syncing settings for {bot_name} with rate card {rate_card} points using fastapi_poe.sync_bot_settings() with key: {key_preview}"
+            )
+            # Call with custom settings dictionary including rate card
+            from fastapi_poe.client import set_poe_bot_settings
+
+            settings_dict = {
+                "bot_name": bot_name,
+                "rate_card": {"api_calling_cost": rate_card, "api_pricing_type": "per_message"},
+            }
+            set_poe_bot_settings(bot_access_key=access_key, **settings_dict)
+        else:
+            logger.info(
+                f"Syncing settings for {bot_name} using fastapi_poe.sync_bot_settings() with key: {key_preview}"
+            )
+            fp_sync_bot_settings(bot_name=bot_name, access_key=access_key)
+
         return True
     except Exception as e:
         logger.error(f"Error syncing bot {bot_name} via fastapi_poe: {e}")
@@ -298,17 +315,18 @@ async def sync_bot_via_http(bot_name: str) -> bool:
         return False
 
 
-async def sync_single_bot(bot_name: str) -> bool:
+async def sync_single_bot(bot_name: str, rate_card: Optional[int] = None) -> bool:
     """Sync settings for a single bot using multiple methods.
 
     Args:
         bot_name: Name of the bot to sync
+        rate_card: Optional rate card value in points to set for the bot
 
     Returns:
         True if any method succeeded, False otherwise
     """
     # First try using fastapi_poe.sync_bot_settings()
-    success = await sync_bot_via_fastapi_poe(bot_name)
+    success = await sync_bot_via_fastapi_poe(bot_name, rate_card)
 
     # If that fails, try the HTTP method
     if not success:
@@ -403,6 +421,7 @@ async def main_async():
     group.add_argument("--all", action="store_true", help="Sync all available bots")
     group.add_argument("--bot", type=str, help="Name of the bot to sync")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--rate-card", type=int, help="Set rate card cost per message in points")
 
     args = parser.parse_args()
 
@@ -428,7 +447,12 @@ async def main_async():
 
     else:
         logger.info(f"Syncing bot {args.bot}...")
-        success = await sync_single_bot(args.bot)
+
+        # Check if rate card is set
+        if args.rate_card is not None:
+            logger.info(f"Setting rate card to {args.rate_card} points per message")
+
+        success = await sync_single_bot(args.bot, args.rate_card)
         status = "✅ Success" if success else "❌ Failed"
         logger.info(f"{args.bot}: {status}")
 
