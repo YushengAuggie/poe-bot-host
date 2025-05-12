@@ -1782,3 +1782,194 @@ class Gemini20ProExpBot(GeminiBaseBot):
     model_name = "gemini-2.0-pro-exp-02-05"
     bot_name = "Gemini20ProExpBot"
     bot_description = "Experimental Gemini 2.0 Pro model with latest capabilities."
+
+
+class GeminiImageGenerationBot(GeminiBaseBot):
+    """Gemini Image Generation bot that creates images from text prompts."""
+
+    model_name = "gemini-2.0-flash-preview-image-generation"
+    bot_name = "GeminiImageGenerationBot"
+    bot_description = "Generates images from text descriptions using Gemini's image generation capabilities."
+    supports_image_generation = True  # Enable image generation
+
+    async def get_settings(self, settings_request):
+        """Get bot settings including the rate card.
+
+        Args:
+            settings_request: The settings request
+
+        Returns:
+            Settings response with rate card and cost label
+        """
+        from fastapi_poe.types import SettingsResponse
+
+        # Create a new settings response
+        settings = SettingsResponse(
+            allow_attachments=True,
+            expand_text_attachments=True,
+            rate_card="100 points / image",
+            cost_label="Image Generation Cost"
+        )
+
+        return settings
+
+    async def _generate_image(self, prompt: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Generate an image based on the text prompt using Gemini API.
+
+        Args:
+            prompt: The text prompt describing the image to generate
+            query: The original query for message_id
+
+        Yields:
+            Response chunks as PartialResponse objects
+        """
+        try:
+            # Import required modules
+            import base64
+            import mimetypes
+            import os
+            import google.generativeai as genai
+            from google.generativeai import types
+
+            # Get API key
+            api_key = get_api_key("GOOGLE_API_KEY")
+            if not api_key:
+                logger.error("GOOGLE_API_KEY not found")
+                yield PartialResponse(text="Error: Google API key is not configured. Please set the GOOGLE_API_KEY environment variable.")
+                return
+
+            # Configure the API key
+            genai.configure(api_key=api_key)
+
+            # Initialize the model for image generation
+            model = genai.GenerativeModel(model_name=self.model_name)
+
+            # Send a status message
+            yield PartialResponse(text=f"🖌️ Generating image from prompt: \"{prompt}\"\n\nPlease wait a moment...")
+
+            # Store all generated images/text
+            generated_text = []
+            generated_images = []
+
+            # Set generation config to generate images
+            generation_config = {
+                "response_mime_type": "image/png",  # Request images
+            }
+
+            # Make the API request
+            logger.info(f"Making image generation request with prompt: {prompt}")
+            try:
+                response = model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                    stream=True
+                )
+
+                # Get all chunks
+                for chunk in response:
+                    # Process content if available
+                    if hasattr(chunk, 'text') and chunk.text:
+                        # This is text content
+                        generated_text.append(chunk.text)
+                        continue
+
+                    # Check for parts attribute
+                    if hasattr(chunk, 'parts'):
+                        for part in chunk.parts:
+                            if hasattr(part, 'text') and part.text:
+                                generated_text.append(part.text)
+                            elif hasattr(part, 'inline_data'):
+                                # Handle image data
+                                inline_data = part.inline_data
+                                mime_type = inline_data.mime_type
+                                data_buffer = inline_data.data
+
+                                # Upload the image to Poe
+                                extension = self._get_extension_for_mime_type(mime_type)
+                                filename = f"gemini_generated_{int(time.time())}.{extension}"
+
+                                try:
+                                    # Upload the image using Poe's attachment mechanism
+                                    attachment_upload_response = await self.post_message_attachment(
+                                        message_id=query.message_id,
+                                        file_data=data_buffer,
+                                        filename=filename,
+                                        is_inline=True,
+                                    )
+
+                                    if hasattr(attachment_upload_response, "inline_ref") and attachment_upload_response.inline_ref:
+                                        # Create markdown with the official Poe attachment reference
+                                        image_md = f"![{filename}][{attachment_upload_response.inline_ref}]"
+                                        generated_images.append(image_md)
+                                    else:
+                                        logger.error("Error uploading image: No inline_ref in response")
+                                        generated_images.append("[Error uploading generated image]")
+                                except Exception as e:
+                                    logger.error(f"Error uploading image: {str(e)}")
+                                    generated_images.append(f"[Error uploading image: {str(e)}]")
+                    else:
+                        # Handle text content
+                        text_content = chunk.text.strip()
+                        if text_content:
+                            generated_text.append(text_content)
+
+                # Yield the model's text explanation if any
+                if generated_text:
+                    yield PartialResponse(text="\n\n".join(generated_text))
+
+                # Yield the generated images
+                for image_md in generated_images:
+                    yield PartialResponse(text="\n\n" + image_md)
+
+                # If no images were generated, inform the user
+                if not generated_images:
+                    yield PartialResponse(text="\n\nNo images were generated. This could be due to content policy restrictions or a technical issue. Please try a different prompt.")
+            except Exception as e:
+                logger.error(f"Error during image generation API call: {str(e)}", exc_info=True)
+                yield PartialResponse(text=f"Error generating image: {str(e)}")
+
+        except Exception as e:
+            logger.error(f"Error generating image: {str(e)}", exc_info=True)
+            yield PartialResponse(text=f"Error generating image: {str(e)}")
+
+    async def _process_user_query(self, client, user_message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+        """Process the user query and generate appropriate response.
+
+        For image generation bot, we override the parent method to focus on generating images.
+
+        Args:
+            client: The Gemini API client
+            user_message: The user's text message
+            query: The original query object
+
+        Yields:
+            Response chunks as PartialResponse objects
+        """
+        # Check if the message appears to be an image generation request
+        # Almost all messages sent to this bot should be treated as image prompts
+        is_image_request = True
+
+        # Extract any query prefixes indicating a non-generation request
+        if user_message.lower().startswith(("help", "info", "what can you do", "capabilities")):
+            # This is a help/info request, not an image generation request
+            is_image_request = False
+            yield PartialResponse(text=(
+                "I can generate images based on your text descriptions. "
+                "Simply describe the image you want to generate, and I'll create it for you.\n\n"
+                "Example prompts:\n"
+                "- A serene mountain lake at sunset with pine trees\n"
+                "- A futuristic cityscape with flying cars and neon lights\n"
+                "- A cute cartoon cat wearing a space helmet\n\n"
+                "Please note that I cannot generate images that violate Google's content policies."
+            ))
+            return
+
+        if is_image_request:
+            # Use our dedicated image generation method
+            async for response in self._generate_image(user_message, query):
+                yield response
+            return
+
+        # Fall back to the parent implementation for non-image requests
+        async for response in super()._process_user_query(client, user_message, query):
+            yield response
