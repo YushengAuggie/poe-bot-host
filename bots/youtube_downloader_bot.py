@@ -14,6 +14,7 @@ import uuid
 from typing import AsyncGenerator, List, Optional, Union
 from urllib.parse import urlparse
 
+import modal
 from fastapi_poe.types import (
     Attachment,
     ContentType,
@@ -25,6 +26,9 @@ from fastapi_poe.types import (
 from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
 
 logger = logging.getLogger(__name__)
+
+# Modal app definition
+app = modal.App("youtube-downloader-bot")
 
 # Make sure to install yt-dlp using pip
 try:
@@ -44,6 +48,7 @@ class YouTubeDownloaderBot(BaseBot):
     bot_name = "YouTubeDownloaderBot"
     bot_description = "Send me a YouTube URL, and I'll download the video for you."
     version = "1.0.0"
+    rate_card_points = 300  # Setting cost as 300 points per message
 
     # Pattern to match YouTube URLs including the video ID
     YOUTUBE_URL_PATTERN = (
@@ -68,28 +73,50 @@ class YouTubeDownloaderBot(BaseBot):
         Returns:
             List of YouTube URLs found in the text
         """
-        matches = re.findall(self.YOUTUBE_URL_PATTERN, text)
+        try:
+            # Attempt to find matches in the text
+            matches = re.findall(self.YOUTUBE_URL_PATTERN, text)
 
-        # Convert matches to full URLs
-        full_urls = []
-        for match in matches:
-            # Extract components
-            protocol = match[0] if match[0] else "https://"
-            domain = match[1] if match[1] else "www."
-            path = match[2]
-            video_id = match[3]
+            if not matches:
+                logger.debug(f"No YouTube URLs found in text: {text[:50]}...")
+                return []
 
-            # Build full URL
-            if "youtu.be" in path:
-                url = f"{protocol}{domain}youtu.be/{video_id}"
-            elif "shorts" in path:
-                url = f"{protocol}{domain}youtube.com/shorts/{video_id}"
-            else:
-                url = f"{protocol}{domain}youtube.com/watch?v={video_id}"
+            # Convert matches to full URLs
+            full_urls = []
+            for match in matches:
+                try:
+                    # Extract components
+                    protocol = match[0] if match[0] else "https://"
+                    domain = match[1] if match[1] else "www."
+                    path = match[2]
+                    video_id = match[3]
 
-            full_urls.append(url)
+                    # Validate video ID (should be alphanumeric with some special chars)
+                    if not re.match(r"^[\w-]+$", video_id):
+                        logger.warning(f"Invalid YouTube video ID: {video_id}")
+                        continue
 
-        return full_urls
+                    # Build full URL
+                    if "youtu.be" in path:
+                        url = f"{protocol}{domain}youtu.be/{video_id}"
+                    elif "shorts" in path:
+                        url = f"{protocol}{domain}youtube.com/shorts/{video_id}"
+                    else:
+                        url = f"{protocol}{domain}youtube.com/watch?v={video_id}"
+
+                    full_urls.append(url)
+                    logger.debug(f"Extracted YouTube URL: {url}")
+
+                except Exception as e:
+                    # Log but continue with other URLs if one fails
+                    logger.error(f"Error processing YouTube URL match: {str(e)}")
+                    continue
+
+            return full_urls
+
+        except Exception as e:
+            logger.error(f"Error extracting YouTube URLs: {str(e)}", exc_info=True)
+            return []
 
     def _validate_youtube_url(self, url: str) -> bool:
         """
@@ -101,29 +128,92 @@ class YouTubeDownloaderBot(BaseBot):
         Returns:
             True if the URL is a valid YouTube URL, False otherwise
         """
-        parsed_url = urlparse(url)
+        try:
+            # Validate input type
+            if not isinstance(url, str):
+                logger.warning(f"Invalid URL type: {type(url)}")
+                return False
 
-        # Check the domain (properly handle both with and without www)
-        youtube_domains = ["youtube.com", "www.youtube.com", "youtu.be", "www.youtu.be"]
+            # Handle empty or very short URLs
+            if not url or len(url) < 10:  # Minimum reasonable length for a YouTube URL
+                logger.warning(f"URL too short to be a valid YouTube URL: {url}")
+                return False
 
-        if parsed_url.netloc in youtube_domains:
-            # For youtu.be URLs
-            if "youtu.be" in parsed_url.netloc and parsed_url.path and len(parsed_url.path) > 1:
-                video_id = parsed_url.path.strip("/")
-                if len(video_id) > 3:  # Reasonable minimum length for a video ID
-                    return True
+            # Parse the URL
+            parsed_url = urlparse(url)
 
-            # For standard youtube.com URLs
-            if "youtube.com" in parsed_url.netloc:
-                # For watch URLs
-                if "watch" in parsed_url.path and "v=" in parsed_url.query:
-                    return True
+            # Check for basic URL structure - must have netloc (domain)
+            if not parsed_url.netloc:
+                logger.debug(f"Invalid URL structure (no domain): {url}")
+                return False
 
-                # For shorts URLs
-                if "shorts" in parsed_url.path and len(parsed_url.path) > 8:  # /shorts/ID
-                    return True
+            # Check the domain (properly handle both with and without www)
+            youtube_domains = ["youtube.com", "www.youtube.com", "youtu.be", "www.youtu.be"]
 
-        return False
+            if parsed_url.netloc.lower() in youtube_domains:
+                # For youtu.be URLs
+                if (
+                    "youtu.be" in parsed_url.netloc.lower()
+                    and parsed_url.path
+                    and len(parsed_url.path) > 1
+                ):
+                    video_id = parsed_url.path.strip("/")
+                    if len(video_id) > 3:  # Reasonable minimum length for a video ID
+                        # Validate video ID format (alphanumeric plus some special chars)
+                        if re.match(r"^[\w-]+$", video_id):
+                            logger.debug(f"Valid youtu.be URL: {url}, video ID: {video_id}")
+                            return True
+                        else:
+                            logger.warning(f"Invalid video ID format in youtu.be URL: {video_id}")
+                    else:
+                        logger.warning(f"Video ID too short in youtu.be URL: {video_id}")
+
+                # For standard youtube.com URLs
+                if "youtube.com" in parsed_url.netloc.lower():
+                    # For watch URLs
+                    if "watch" in parsed_url.path and "v=" in parsed_url.query:
+                        # Extract and validate the video ID
+                        query_params = dict(
+                            pair.split("=") for pair in parsed_url.query.split("&") if "=" in pair
+                        )
+                        if "v" in query_params and len(query_params["v"]) > 3:
+                            video_id = query_params["v"]
+                            if re.match(r"^[\w-]+$", video_id):
+                                logger.debug(
+                                    f"Valid youtube.com watch URL: {url}, video ID: {video_id}"
+                                )
+                                return True
+                            else:
+                                logger.warning(
+                                    f"Invalid video ID format in youtube.com URL: {video_id}"
+                                )
+                        else:
+                            logger.warning(
+                                f"Missing or invalid v parameter in youtube.com URL: {url}"
+                            )
+
+                    # For shorts URLs
+                    if "shorts" in parsed_url.path and len(parsed_url.path) > 8:  # /shorts/ID
+                        # Extract video ID from shorts URL
+                        path_parts = parsed_url.path.strip("/").split("/")
+                        if len(path_parts) >= 2 and path_parts[0] == "shorts":
+                            video_id = path_parts[1]
+                            if len(video_id) > 3 and re.match(r"^[\w-]+$", video_id):
+                                logger.debug(
+                                    f"Valid youtube.com shorts URL: {url}, video ID: {video_id}"
+                                )
+                                return True
+                            else:
+                                logger.warning(f"Invalid video ID in shorts URL: {video_id}")
+                        else:
+                            logger.warning(f"Invalid shorts URL format: {url}")
+
+            logger.debug(f"URL failed domain validation: {url}, domain: {parsed_url.netloc}")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error validating YouTube URL: {str(e)}", exc_info=True)
+            return False
 
     def _download_video(self, url: str, max_filesize_mb: int = 25) -> str:
         """
@@ -154,15 +244,12 @@ class YouTubeDownloaderBot(BaseBot):
                 "quiet": False,  # Show progress
                 "no_warnings": False,
                 "noprogress": True,  # Don't show download progress bar
-
                 # Enhanced options for bypassing restrictions
                 "skip_download": False,
                 "writesubtitles": False,
-
                 # Options to help bypass restrictions
                 "age_limit": 21,  # Set higher age limit
                 "geo_bypass": True,  # Try to bypass geo-restrictions
-
                 # Try alternative extraction methods
                 "extractor_retries": 3,  # Retry extraction up to 3 times
             }
@@ -181,13 +268,14 @@ class YouTubeDownloaderBot(BaseBot):
                     logger.info("Detected age restriction, trying alternative method")
 
                     # Update options for age-restricted content
-                    ydl_opts.update({
-                        "age_limit": 30,  # Maximum possible
-                        "youtube_include_dash_manifest": True,
-
-                        # Use a more common browser user-agent
-                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    })
+                    ydl_opts.update(
+                        {
+                            "age_limit": 30,  # Maximum possible
+                            "youtube_include_dash_manifest": True,
+                            # Use a more common browser user-agent
+                            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        }
+                    )
 
                     # Try again with enhanced options
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -209,10 +297,7 @@ class YouTubeDownloaderBot(BaseBot):
                     output_path = os.path.join(self.temp_dir, possible_files[0])
                 else:
                     # Last resort fallback - try one more method
-                    ydl_opts.update({
-                        "format": "best",
-                        "merge_output_format": "mp4"
-                    })
+                    ydl_opts.update({"format": "best", "merge_output_format": "mp4"})
 
                     try:
                         logger.info("Trying final fallback method for restricted content")
@@ -229,16 +314,20 @@ class YouTubeDownloaderBot(BaseBot):
                         if possible_files:
                             output_path = os.path.join(self.temp_dir, possible_files[0])
                         else:
-                            raise BotError(f"Failed to download video from {url} after multiple attempts")
+                            raise BotError(
+                                f"ERROR: Download failed - Could not download video from {url} after multiple attempts"
+                            )
                     except Exception as fallback_error:
-                        raise BotError(f"Failed to download video from {url}: {str(fallback_error)}")
+                        raise BotError(
+                            f"ERROR: Download failed - Could not download video from {url}: {str(fallback_error)}"
+                        )
 
             # Verify filesize
             filesize = os.path.getsize(output_path) / (1024 * 1024)  # Convert to MB
             if filesize > max_filesize_mb:
                 os.remove(output_path)
                 raise BotErrorNoRetry(
-                    f"Video filesize ({filesize:.1f}MB) exceeds the maximum allowed size ({max_filesize_mb}MB)"
+                    f"ERROR: Size limit exceeded - Video is {filesize:.1f}MB (maximum allowed is {max_filesize_mb}MB)"
                 )
 
             logger.debug(f"Downloaded video to {output_path}, size: {filesize:.1f}MB")
@@ -249,23 +338,35 @@ class YouTubeDownloaderBot(BaseBot):
             logger.error(f"YouTube download error: {error_msg}")
 
             if "This video is unavailable" in error_msg:
-                raise BotErrorNoRetry("This video is unavailable or private.")
+                raise BotErrorNoRetry(
+                    "ERROR: Video unavailable - This video is private or has been removed."
+                )
             elif "Video unavailable" in error_msg:
-                raise BotErrorNoRetry("This video is unavailable or has been removed.")
+                raise BotErrorNoRetry(
+                    "ERROR: Video unavailable - This video has been removed from YouTube."
+                )
             elif "Sign in" in error_msg and "age" in error_msg.lower():
-                raise BotErrorNoRetry("Could not bypass age restriction for this video. Try a different video.")
+                raise BotErrorNoRetry(
+                    "ERROR: Age-restricted content - Unable to bypass age restriction for this video."
+                )
             elif "Sign in" in error_msg:
-                raise BotErrorNoRetry("Could not bypass sign-in requirement for this video. Try a different video.")
+                raise BotErrorNoRetry(
+                    "ERROR: Login required - Cannot bypass sign-in requirement for this video."
+                )
             elif "copyright" in error_msg.lower():
-                raise BotErrorNoRetry("This video is not available due to copyright restrictions.")
+                raise BotErrorNoRetry(
+                    "ERROR: Copyright restriction - This video is blocked due to copyright claims."
+                )
             elif "geo" in error_msg.lower() or "country" in error_msg.lower():
-                raise BotErrorNoRetry("This video is not available in your region due to geographical restrictions.")
+                raise BotErrorNoRetry(
+                    "ERROR: Geo-restricted - This video is not available in your region."
+                )
             else:
-                raise BotError(f"Error downloading the video: {error_msg}")
+                raise BotError(f"ERROR: Download failed - {error_msg}")
 
         except Exception as e:
             logger.error(f"Unexpected error downloading video: {str(e)}", exc_info=True)
-            raise BotError(f"Unexpected error downloading the video: {str(e)}")
+            raise BotError(f"ERROR: Unexpected failure - Could not download the video: {str(e)}")
 
     def _create_video_attachment(
         self, file_path: str, video_title: Optional[str] = None
@@ -317,6 +418,42 @@ class YouTubeDownloaderBot(BaseBot):
                 logger.debug(f"Deleted file {file_path}")
         except Exception as e:
             logger.error(f"Error cleaning up file {file_path}: {str(e)}")
+
+    async def get_settings(self, settings_request):
+        """Configure bot settings.
+
+        This bot doesn't accept file attachments as input, but it does send
+        attachments as output (downloaded videos).
+
+        The bot has a rate card of 300 points per message.
+        """
+        try:
+            from fastapi_poe.types import SettingsResponse
+
+            # Return settings with attachments disabled for input
+            # Note: Rate card is managed separately through the Poe API
+            settings = SettingsResponse(
+                allow_attachments=False,  # Disable file upload for this bot
+                server_bot_dependencies={
+                    "allow_attachments": False,
+                    "rate_card": {
+                        "api_calling_cost": self.rate_card_points,
+                        "api_pricing_type": "per_message",
+                    },
+                },
+            )
+
+            logger.debug(
+                f"[{self.bot_name}] Configured settings: allow_attachments=False, rate_card={self.rate_card_points}"
+            )
+            return settings
+
+        except Exception as e:
+            logger.error(f"[{self.bot_name}] Error configuring settings: {str(e)}", exc_info=True)
+            # Still return a valid settings object even if there's an error
+            from fastapi_poe.types import SettingsResponse
+
+            return SettingsResponse(allow_attachments=False)
 
     async def get_response(
         self, query: QueryRequest
@@ -397,18 +534,50 @@ Send me a YouTube video URL, and I'll download the video and send it back to you
                     self._cleanup(downloaded_file)
 
         except BotErrorNoRetry as e:
-            # Log the error (non-retryable)
+            # Log the error (non-retryable) and re-raise it to trigger a failure
+            # This will charge the user points but show an error
             logger.error(f"[{self.bot_name}] Non-retryable error: {str(e)}", exc_info=True)
-            yield PartialResponse(text=f"Error (please try something else): {str(e)}")
+            # Return a helpful error message to the user before re-raising
+            yield PartialResponse(
+                text=f"❌ Error: {str(e)}\n\nThis type of error cannot be fixed by trying again."
+            )
+            raise
 
         except BotError as e:
-            # Log the error (retryable)
+            # Log the error (retryable) and re-raise it to trigger a failure
+            # This will charge the user points but show an error
             logger.error(f"[{self.bot_name}] Retryable error: {str(e)}", exc_info=True)
-            yield PartialResponse(text=f"Error (please try again): {str(e)}")
+            # Return a helpful error message to the user before re-raising
+            yield PartialResponse(
+                text=f"❌ Error: {str(e)}\n\nPlease try again or try with a different video."
+            )
+            raise
 
         except Exception as e:
-            # Log the unexpected error
+            # Log the unexpected error and re-raise as BotError
             logger.error(f"[{self.bot_name}] Unexpected error: {str(e)}", exc_info=True)
-            # Return a generic error message
-            error_msg = "An unexpected error occurred. Please try again later."
-            yield PartialResponse(text=error_msg)
+            # Return a helpful error message to the user before re-raising
+            yield PartialResponse(
+                text="❌ An unexpected error occurred while processing your request.\n\nPlease try again later or try with a different video URL."
+            )
+            # Raise as a BotError to ensure proper error reporting
+            raise BotError(f"ERROR: Unexpected failure - {str(e)}")
+
+
+# Modal image with required dependencies
+image = modal.Image.debian_slim().pip_install(
+    ["fastapi-poe>=0.0.17", "pydantic>=2.0.0", "yt-dlp>=2023.10.7"]
+)
+
+
+# Modal web endpoint for the bot
+@app.function(image=image)
+@modal.web_endpoint(method="POST")
+async def web_endpoint(request: bytes) -> bytes:
+    """Modal web endpoint for the YouTube Downloader Bot."""
+    from fastapi_poe import make_app
+
+    bot = YouTubeDownloaderBot()
+    app = make_app(bot)
+
+    return await app.handle_request(request)
