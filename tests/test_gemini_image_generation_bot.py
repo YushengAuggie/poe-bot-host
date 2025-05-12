@@ -86,14 +86,16 @@ async def test_help_request(image_generation_bot):
         message_id="test_message",
     )
 
-    responses = []
-    async for response in image_generation_bot.get_response(help_query):
-        responses.append(response)
+    # Patch the API key check to always return a test key
+    with patch("bots.gemini.get_api_key", return_value="test_api_key"):
+        responses = []
+        async for response in image_generation_bot.get_response(help_query):
+            responses.append(response)
 
-    # Verify help response
-    assert len(responses) >= 1
-    assert "can generate images" in responses[0].text
-    assert "Example prompts" in responses[0].text
+        # Verify help response
+        assert len(responses) >= 1
+        assert "can generate images" in responses[0].text
+        assert "Example prompts" in responses[0].text
 
 
 @pytest.mark.asyncio
