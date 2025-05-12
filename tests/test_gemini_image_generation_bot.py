@@ -3,10 +3,11 @@ Tests for the GeminiImageGenerationBot that can generate images from text prompt
 """
 
 import sys
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi_poe.types import PartialResponse, ProtocolMessage, QueryRequest, SettingsResponse
+from fastapi_poe.types import ProtocolMessage, QueryRequest, SettingsResponse
 
 # Create mock for google.generativeai module and add it to sys.modules before importing the bot
 mock_genai = MagicMock()
@@ -118,7 +119,8 @@ async def test_successful_image_generation(image_generation_bot, image_request):
     mock_model.generate_content.return_value = mock_response
 
     # No need to create a new mock_genai here, we'll use the module-level one
-    sys.modules["google.generativeai"].configure = MagicMock()
+    mock_genai_module = cast(Any, sys.modules["google.generativeai"])
+    mock_genai_module.configure = MagicMock()
 
     # Mock for Poe attachment response
     mock_attachment_response = AsyncMock()
@@ -151,8 +153,8 @@ async def test_successful_image_generation(image_generation_bot, image_request):
         # Verify model was called with correct parameters
         mock_model.generate_content.assert_called_once()
         call_args = mock_model.generate_content.call_args
-        # Check first argument is the prompt
-        assert call_args[0][0] == "Generate a cat sitting on a beach"
+        # Check first argument includes the original prompt (but may include template text)
+        assert "Generate a cat sitting on a beach" in call_args[0][0]
         # Check that we're calling with stream=False
         assert "stream" in call_args[1]
         assert call_args[1]["stream"] is False
