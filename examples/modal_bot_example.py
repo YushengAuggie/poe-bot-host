@@ -22,8 +22,7 @@ def openai_chat(prompt):
     client = OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
+        model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
     )
 
     return response.choices[0].message.content
@@ -60,16 +59,17 @@ def run_local(prompt, use_gemini=False):
         print("Using OpenAI locally:")
         client = OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+            model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content
 
 
 @app.local_entrypoint()
-def main(prompt: str = "Explain quantum computing in simple terms",
-         use_gemini: bool = False,
-         local: bool = False):
+def main(
+    prompt: str = "Explain quantum computing in simple terms",
+    use_gemini: bool = False,
+    local: bool = False,
+):
     """
     Entry point for the Modal app.
 

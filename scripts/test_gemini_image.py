@@ -26,20 +26,21 @@ import json
 import logging
 import os
 import sys
-from typing import AsyncGenerator, Dict, Any, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 # Add the project root to path so utils module can be found
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi_poe.types import PartialResponse, ProtocolMessage, QueryRequest
 import importlib
+
+from fastapi_poe.types import PartialResponse, ProtocolMessage, QueryRequest
 
 # Set up logging
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("gemini_test")
+
 
 class MockAttachment:
     """Mock attachment with base64 content."""
@@ -93,10 +94,11 @@ def load_image_from_file(file_path: str) -> tuple[bytes, str]:
     Returns:
         Tuple of (image_data, mime_type)
     """
-    import os
-    from PIL import Image
     import imghdr
     import mimetypes
+    import os
+
+    from PIL import Image
 
     try:
         # Check if file exists
@@ -105,7 +107,7 @@ def load_image_from_file(file_path: str) -> tuple[bytes, str]:
 
         # Get mime type
         mime_type = mimetypes.guess_type(file_path)[0]
-        if not mime_type or not mime_type.startswith('image/'):
+        if not mime_type or not mime_type.startswith("image/"):
             # Fallback to imghdr
             img_type = imghdr.what(file_path)
             if img_type:
@@ -114,7 +116,7 @@ def load_image_from_file(file_path: str) -> tuple[bytes, str]:
                 mime_type = "image/jpeg"  # Default
 
         # Open and read the image
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             image_data = f.read()
 
         # Validate it's a valid image
@@ -133,7 +135,7 @@ def load_image_from_file(file_path: str) -> tuple[bytes, str]:
 async def test_gemini_image_processing(
     bot_name: str = "Gemini20FlashBot",
     image_path: Optional[str] = None,
-    prompt: str = "What is in this image?"
+    prompt: str = "What is in this image?",
 ):
     """Test Gemini image processing.
 
@@ -144,6 +146,7 @@ async def test_gemini_image_processing(
     """
     import io
     import os
+
     from PIL import Image
 
     # Import the bot class
@@ -163,15 +166,15 @@ async def test_gemini_image_processing(
     else:
         print("Creating test image (10x10 red square)")
         # Create a simple 10x10 red image
-        img = Image.new('RGB', (100, 100), color='red')
+        img = Image.new("RGB", (100, 100), color="red")
         buf = io.BytesIO()
-        img.save(buf, format='JPEG')
+        img.save(buf, format="JPEG")
         image_data = buf.getvalue()
         mime_type = "image/jpeg"
         file_name = "test_red_square.jpg"
 
     # Encode the image
-    base64_content = base64.b64encode(image_data).decode('utf-8')
+    base64_content = base64.b64encode(image_data).decode("utf-8")
 
     # Create an attachment with the image data
     attachment = MockAttachment(file_name, mime_type, base64_content)
@@ -195,6 +198,7 @@ async def test_gemini_image_processing(
 
     # Check if API key is set
     import os
+
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         print("\nWARNING: GOOGLE_API_KEY environment variable is not set!")
@@ -232,7 +236,7 @@ async def test_gemini_image_processing(
     responses = []
     try:
         async for response in bot.get_response(query):
-            if hasattr(response, 'text'):
+            if hasattr(response, "text"):
                 responses.append(response.text)
     except Exception as e:
         print(f"Error getting response: {str(e)}")
@@ -256,16 +260,15 @@ def parse_args():
     parser.add_argument(
         "--bot",
         default="Gemini20FlashBot",
-        help="Bot class name to test (default: Gemini20FlashBot)"
+        help="Bot class name to test (default: Gemini20FlashBot)",
     )
     parser.add_argument(
-        "--image",
-        help="Path to image file to test with (if not provided, uses a test image)"
+        "--image", help="Path to image file to test with (if not provided, uses a test image)"
     )
     parser.add_argument(
         "--prompt",
         default="What is in this image?",
-        help="Text prompt to send with the image (default: 'What is in this image?')"
+        help="Text prompt to send with the image (default: 'What is in this image?')",
     )
     return parser.parse_args()
 
@@ -275,8 +278,6 @@ if __name__ == "__main__":
     args = parse_args()
 
     # Run the test
-    asyncio.run(test_gemini_image_processing(
-        bot_name=args.bot,
-        image_path=args.image,
-        prompt=args.prompt
-    ))
+    asyncio.run(
+        test_gemini_image_processing(bot_name=args.bot, image_path=args.image, prompt=args.prompt)
+    )

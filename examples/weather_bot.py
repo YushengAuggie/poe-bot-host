@@ -22,6 +22,7 @@ from utils.base_bot import BaseBot, BotError
 # Get logger
 logger = logging.getLogger(__name__)
 
+
 class WeatherBot(BaseBot):
     """A bot that provides simulated weather information."""
 
@@ -31,17 +32,35 @@ class WeatherBot(BaseBot):
 
     # List of cities for random weather generation
     CITIES = [
-        "New York", "London", "Tokyo", "Paris", "Sydney", "Berlin",
-        "Toronto", "Singapore", "Dubai", "Mumbai", "São Paulo"
+        "New York",
+        "London",
+        "Tokyo",
+        "Paris",
+        "Sydney",
+        "Berlin",
+        "Toronto",
+        "Singapore",
+        "Dubai",
+        "Mumbai",
+        "São Paulo",
     ]
 
     # Weather conditions for simulation
     WEATHER_CONDITIONS = [
-        "Sunny", "Partly Cloudy", "Cloudy", "Rainy", "Thunderstorms",
-        "Snowy", "Foggy", "Windy", "Clear"
+        "Sunny",
+        "Partly Cloudy",
+        "Cloudy",
+        "Rainy",
+        "Thunderstorms",
+        "Snowy",
+        "Foggy",
+        "Windy",
+        "Clear",
     ]
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a weather report response."""
         try:
             # Extract the query contents
@@ -60,7 +79,9 @@ class WeatherBot(BaseBot):
             location = self._parse_location(user_message)
 
             if not location:
-                yield PartialResponse(text="Please provide a city name for the weather forecast. For example: 'Weather in London'")
+                yield PartialResponse(
+                    text="Please provide a city name for the weather forecast. For example: 'Weather in London'"
+                )
                 return
 
             # Simulate API call delay
@@ -77,7 +98,9 @@ class WeatherBot(BaseBot):
 
             except BotError as e:
                 # Handle expected errors
-                yield PartialResponse(text=f"Sorry, I couldn't get the weather for {location}: {str(e)}")
+                yield PartialResponse(
+                    text=f"Sorry, I couldn't get the weather for {location}: {str(e)}"
+                )
 
         except Exception:
             # Let the parent class handle errors
@@ -122,20 +145,22 @@ class WeatherBot(BaseBot):
             forecast = []
             for i in range(1, 4):
                 day = (datetime.now() + timedelta(days=i)).strftime("%A")
-                forecast.append({
-                    "day": day,
-                    "condition": random.choice(self.WEATHER_CONDITIONS),
-                    "temp_high": temp_c + random.randint(-3, 3),
-                    "temp_low": temp_c + random.randint(-8, -2),
-                })
+                forecast.append(
+                    {
+                        "day": day,
+                        "condition": random.choice(self.WEATHER_CONDITIONS),
+                        "temp_high": temp_c + random.randint(-3, 3),
+                        "temp_low": temp_c + random.randint(-8, -2),
+                    }
+                )
 
             return {
                 "temp_c": temp_c,
-                "temp_f": round(temp_c * 9/5 + 32),
+                "temp_f": round(temp_c * 9 / 5 + 32),
                 "condition": condition,
                 "humidity": humidity,
                 "wind_speed": wind_speed,
-                "forecast": forecast
+                "forecast": forecast,
             }
         else:
             # Simulate an API error for unknown locations
@@ -146,11 +171,11 @@ class WeatherBot(BaseBot):
             temp_c = random.randint(5, 35)
             return {
                 "temp_c": temp_c,
-                "temp_f": round(temp_c * 9/5 + 32),
+                "temp_f": round(temp_c * 9 / 5 + 32),
                 "condition": random.choice(self.WEATHER_CONDITIONS),
                 "humidity": random.randint(30, 90),
                 "wind_speed": random.randint(0, 30),
-                "forecast": []  # No forecast for unknown locations
+                "forecast": [],  # No forecast for unknown locations
             }
 
     def _format_weather_report(self, location: str, data: Dict[str, Any]) -> str:
@@ -166,16 +191,19 @@ class WeatherBot(BaseBot):
         ]
 
         # Add forecast if available
-        if data['forecast']:
+        if data["forecast"]:
             report.append("**3-Day Forecast:**")
-            for day in data['forecast']:
-                report.append(f"- {day['day']}: {day['condition']}, {day['temp_low']}°C to {day['temp_high']}°C")
+            for day in data["forecast"]:
+                report.append(
+                    f"- {day['day']}: {day['condition']}, {day['temp_low']}°C to {day['temp_high']}°C"
+                )
 
         # Add disclaimer
         report.append("")
         report.append("*Note: This is simulated weather data for demonstration purposes.*")
 
         return "\n".join(report)
+
 
 # For standalone testing
 if __name__ == "__main__":
@@ -193,7 +221,7 @@ if __name__ == "__main__":
             conversation_id="test_conversation",
             message_id="test_message",
             version="1.0",
-            type="query"
+            type="query",
         )
 
         print("Testing WeatherBot with 'Weather in London':")

@@ -326,9 +326,11 @@ async def test_new_google_api_format(gemini_bot, media_attachment):
         "data": (
             TEST_IMAGE_DATA
             if media_attachment.content_type.startswith("image/")
-            else TEST_VIDEO_DATA
-            if media_attachment.content_type.startswith("video/")
-            else TEST_AUDIO_DATA
+            else (
+                TEST_VIDEO_DATA
+                if media_attachment.content_type.startswith("video/")
+                else TEST_AUDIO_DATA
+            )
         ),
     }
 

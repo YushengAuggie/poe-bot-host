@@ -19,8 +19,9 @@ def get_debug_info(url):
     else:
         return {
             "error": f"Failed to get debug info. Status code: {response.status_code}",
-            "text": response.text
+            "text": response.text,
         }
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:

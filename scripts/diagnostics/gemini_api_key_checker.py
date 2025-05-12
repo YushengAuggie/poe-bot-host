@@ -9,7 +9,7 @@ and make a test API call to verify that the key is working properly.
 Usage:
     # Test locally
     python scripts/diagnostics/gemini_api_key_checker.py
-    
+
     # Deploy and test on Modal
     modal deploy scripts/diagnostics/gemini_api_key_checker.py
 """
@@ -25,6 +25,7 @@ try:
 except ImportError:
     modal = None
 
+
 def test_google_api_key_local():
     """Test if the GOOGLE_API_KEY is properly configured locally"""
     # Now utils can be imported
@@ -39,6 +40,7 @@ def test_google_api_key_local():
         # Check if google-generativeai is installed
         try:
             import google.generativeai as genai
+
             print("google-generativeai package: INSTALLED")
 
             # Try to initialize the client
@@ -58,10 +60,11 @@ def test_google_api_key_local():
     except ValueError as e:
         print(f"API key error: {str(e)}")
 
+
 # For Modal deployment
 if modal:
     app = modal.App("gemini-key-test")
-    
+
     # Create a Modal image that includes all necessary packages and our code
     image = (
         modal.Image.debian_slim()
@@ -71,7 +74,7 @@ if modal:
             "python-dotenv>=1.0.0",
             "fastapi>=0.105.0",
             "pydantic>=2.0.0",
-            "requests>=2.27.1"
+            "requests>=2.27.1",
         )
         .add_local_dir(".", "/root")  # Using add_local_dir instead of copy_local_dir
     )
@@ -85,8 +88,9 @@ if modal:
         # Add the project directory to the Python path
         import os
         import sys
+
         sys.path.append("/root")
-        
+
         # Now utils can be imported
         from utils.api_keys import get_api_key
 
@@ -98,6 +102,7 @@ if modal:
 
             # Import and initialize genai
             import google.generativeai as genai
+
             print("google-generativeai package: INSTALLED")
 
             # Try to initialize the client
@@ -108,17 +113,18 @@ if modal:
             # Test a simple query
             response = model.generate_content("Say hello")
             print(f"Gemini API test response: {response.text[:20]}...")
-            
+
             return "Success! Gemini API key is working correctly."
-            
+
         except Exception as e:
             error_msg = f"Error: {str(e)}"
             print(error_msg)
             return error_msg
 
+
 if __name__ == "__main__":
     print("Running test for Gemini API key...")
-    
+
     # Check if Modal is available
     if modal and not modal.is_local():
         print("Running in Modal cloud...")
@@ -126,13 +132,15 @@ if __name__ == "__main__":
         print(f"Result: {result}")
     else:
         print("Running in local mode...")
-        
+
         # Check if key exists in environment
         if "GOOGLE_API_KEY" not in os.environ:
             print("Warning: GOOGLE_API_KEY not found in environment variables")
             print("Please set the GOOGLE_API_KEY environment variable and try again.")
-            print("Example: GOOGLE_API_KEY=your_key_here python scripts/diagnostics/gemini_api_key_checker.py")
+            print(
+                "Example: GOOGLE_API_KEY=your_key_here python scripts/diagnostics/gemini_api_key_checker.py"
+            )
             sys.exit(1)
-        
+
         # Execute the local test
         test_google_api_key_local()

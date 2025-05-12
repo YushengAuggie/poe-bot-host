@@ -57,6 +57,6 @@ class TestApiKeys:
         # These tests are primarily to demonstrate example usages
         with patch.dict(os.environ, {"OPENAI_API_KEY": "openai-key"}, clear=True):
             assert get_api_key("OPENAI_API_KEY") == "openai-key"
-        
+
         with patch.dict(os.environ, {"GOOGLE_API_KEY": "google-key"}, clear=True):
             assert get_api_key("GOOGLE_API_KEY") == "google-key"

@@ -2,7 +2,6 @@
 Tests for the FileAnalyzerBot implementation.
 """
 
-
 import pytest
 from fastapi_poe.types import Attachment, QueryRequest
 

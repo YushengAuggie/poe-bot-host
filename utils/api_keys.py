@@ -9,10 +9,12 @@ logger.setLevel(logging.DEBUG)
 try:
     import modal
     from modal import Secret
+
     logger.debug("Modal package imported successfully")
 except ImportError:
     logger.warning("Modal package not available")
     modal = None
+
     # Type stub for when modal is not available
     class Secret:
         @classmethod
