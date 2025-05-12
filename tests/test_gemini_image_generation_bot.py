@@ -13,7 +13,7 @@ mock_genai = MagicMock()
 sys.modules["google.generativeai"] = mock_genai
 
 # Local imports must be after the mock setup to avoid import errors
-from bots.gemini_image_bot import GeminiImageGenerationBot  # noqa: E402
+from bots.gemini import GeminiImageGenerationBot  # noqa: E402
 
 
 class MockResponsePart:
@@ -129,7 +129,7 @@ async def test_successful_image_generation(image_generation_bot, image_request):
 
     # Patch necessary dependencies
     with (
-        patch("bots.gemini_image_bot.get_api_key", return_value="test_api_key"),
+        patch("bots.gemini.get_api_key", return_value="test_api_key"),
         patch.object(
             image_generation_bot, "post_message_attachment", return_value=mock_attachment_response
         ),
@@ -153,16 +153,17 @@ async def test_successful_image_generation(image_generation_bot, image_request):
         call_args = mock_model.generate_content.call_args
         # Check first argument is the prompt
         assert call_args[0][0] == "Generate a cat sitting on a beach"
-        # We don't pass generation_config with response_mime_type anymore as it causes errors
+        # Check that we're calling with stream=False
         assert "stream" in call_args[1]
         assert call_args[1]["stream"] is False
+        # We might have generation_config in different formats, no need to check its exact structure
 
 
 @pytest.mark.asyncio
 async def test_api_key_missing(image_generation_bot, image_request):
     """Test handling of missing API key."""
     # Patch necessary dependencies to simulate missing API key
-    with patch("bots.gemini_image_bot.get_api_key", return_value=None):
+    with patch("bots.gemini.get_api_key", return_value=None):
         responses = []
         async for response in image_generation_bot.get_response(image_request):
             responses.append(response)

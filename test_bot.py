@@ -89,7 +89,7 @@ def test_bot_api(
     base_url: str = "http://localhost:8000",
     bot_name: str = "EchoBot",
     message: str = "Test message",
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Test a bot with a sample message.
 

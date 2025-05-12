@@ -30,19 +30,32 @@ class TestClient:
                 # Create a mock response based on the endpoint
                 if url == "/error":
                     # Return a 500 error for the error endpoint
-                    response = httpx.Response(500, json={"error": "An internal server error occurred",
-                                                        "detail": "Test error"})
+                    response = httpx.Response(
+                        500,
+                        json={"error": "An internal server error occurred", "detail": "Test error"},
+                    )
                 else:
                     # Normal 200 response for other endpoints
-                    response = httpx.Response(200, json={"status": "ok", "version": "1.0.0",
-                                                   "bots": {"TestBot1": "Test bot 1 description",
-                                                           "TestBot2": "Test bot 2 description"},
-                                                   "environment": {"debug": False, "log_level": "INFO", "allow_without_key": True}})
+                    response = httpx.Response(
+                        200,
+                        json={
+                            "status": "ok",
+                            "version": "1.0.0",
+                            "bots": {
+                                "TestBot1": "Test bot 1 description",
+                                "TestBot2": "Test bot 2 description",
+                            },
+                            "environment": {
+                                "debug": False,
+                                "log_level": "INFO",
+                                "allow_without_key": True,
+                            },
+                        },
+                    )
                 return response
 
         # Default 404 response
         return httpx.Response(404)
-
 
 
 @pytest.fixture

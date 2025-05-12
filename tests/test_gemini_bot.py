@@ -79,7 +79,7 @@ def image_attachment():
 def video_attachment_local():
     """Create a mock video attachment."""
     # Use a minimal valid MP4 content (not a real video, just for testing)
-    mp4_content = b"\x00\x00\x00\x20\x66\x74\x79\x70\x69\x73\x6F\x6D\x00\x00\x02\x00"
+    mp4_content = b"\x00\x00\x00\x20\x66\x74\x79\x70\x69\x73\x6f\x6d\x00\x00\x02\x00"
     return MockAttachment("test.mp4", "video/mp4", mp4_content)
 
 
@@ -225,8 +225,9 @@ async def test_text_only_streaming_response(gemini_bot, sample_query_with_text):
 
     # Make client.generate_content called first by setting the response in a patch
     # before entering the context
-    with patch("bots.gemini.get_client", return_value=mock_client), patch.dict(
-        "sys.modules", mock_modules
+    with (
+        patch("bots.gemini.get_client", return_value=mock_client),
+        patch.dict("sys.modules", mock_modules),
     ):
         # Override the _process_user_query to directly use our mocked client
         async def mock_process_query(*args, **kwargs):

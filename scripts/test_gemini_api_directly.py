@@ -15,10 +15,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.api_keys import get_api_key
 
+
 def test_gemini_api_with_image():
     """Test Gemini API with image input directly."""
     print("Testing Gemini API with image input directly...")
-    
+
     # Get the API key
     api_key = get_api_key("GOOGLE_API_KEY")
     if not api_key:
@@ -26,37 +27,38 @@ def test_gemini_api_with_image():
         return False
 
     print(f"Found GOOGLE_API_KEY (starts with {api_key[:5]}...)")
-    
+
     # Try to import google.generativeai
     try:
         import google.generativeai as genai
+
         print("Successfully imported google.generativeai module")
     except ImportError:
         print("ERROR: Failed to import google.generativeai module")
         print("Please install it with: pip install google-generativeai")
         return False
-    
+
     # Configure API key
     genai.configure(api_key=api_key)
-    
+
     # Check if we can list models
     try:
         models = list(genai.list_models())
         print(f"Successfully listed {len(models)} models")
-        
+
         # Print available model names
         print("Available models:")
         for model in models:
             print(f"  - {model.name}")
     except Exception as e:
         print(f"ERROR: Failed to list models: {str(e)}")
-        
+
     # Try to load image
     image_path = os.path.join(os.path.dirname(__file__), "duck.jpg")
     if not os.path.exists(image_path):
         print(f"ERROR: Image file not found: {image_path}")
         return False
-    
+
     print(f"Loading image file: {image_path}")
     try:
         with open(image_path, "rb") as f:
@@ -65,7 +67,7 @@ def test_gemini_api_with_image():
     except Exception as e:
         print(f"ERROR: Failed to load image: {str(e)}")
         return False
-    
+
     # Try to create a dictionary-based format (old API style)
     try:
         # Check the genai package version
@@ -79,7 +81,7 @@ def test_gemini_api_with_image():
             "gemini-2.0-flash",
             "gemini-2.0-pro",
             "gemini-2.5-flash-preview",
-            "gemini-pro-vision"  # Deprecated but kept as fallback
+            "gemini-pro-vision",  # Deprecated but kept as fallback
         ]
 
         vision_model_name = None
@@ -102,15 +104,8 @@ def test_gemini_api_with_image():
             "contents": [
                 {
                     "parts": [
-                        {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": image_data
-                            }
-                        },
-                        {
-                            "text": "What do you see in this image?"
-                        }
+                        {"inline_data": {"mime_type": "image/jpeg", "data": image_data}},
+                        {"text": "What do you see in this image?"},
                     ]
                 }
             ]
@@ -125,13 +120,8 @@ def test_gemini_api_with_image():
 
             # Format for newer API
             content_parts = [
-                {
-                    "inline_data": {
-                        "mime_type": "image/jpeg",
-                        "data": image_data
-                    }
-                },
-                "What do you see in this image?"
+                {"inline_data": {"mime_type": "image/jpeg", "data": image_data}},
+                "What do you see in this image?",
             ]
 
             print("Sending request to API...")
@@ -146,10 +136,7 @@ def test_gemini_api_with_image():
 
             # Fallback to direct API call
             try:
-                response = genai.generate_content(
-                    model=vision_model_name,
-                    contents=content_parts
-                )
+                response = genai.generate_content(model=vision_model_name, contents=content_parts)
 
                 print("\n=== API Response (alternate API) ===")
                 print(response.text)
@@ -161,6 +148,7 @@ def test_gemini_api_with_image():
     except Exception as e:
         print(f"ERROR: General failure in API call: {str(e)}")
         return False
+
 
 if __name__ == "__main__":
     success = test_gemini_api_with_image()

@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 class WeatherCondition(TypedDict):
     """Type definition for a weather condition."""
+
     id: int
     main: str
     description: str
@@ -29,6 +30,7 @@ class WeatherCondition(TypedDict):
 
 class MainWeatherData(TypedDict):
     """Type definition for main weather data."""
+
     temp: float
     feels_like: float
     temp_min: float
@@ -39,17 +41,20 @@ class MainWeatherData(TypedDict):
 
 class WindData(TypedDict):
     """Type definition for wind data."""
+
     speed: float
     deg: int
 
 
 class CloudData(TypedDict):
     """Type definition for cloud data."""
+
     all: int
 
 
 class SysData(TypedDict):
     """Type definition for sys data."""
+
     country: str
     sunrise: int
     sunset: int
@@ -57,6 +62,7 @@ class SysData(TypedDict):
 
 class WeatherData(TypedDict, total=False):
     """Type definition for complete weather data response."""
+
     name: str
     main: MainWeatherData
     weather: List[WeatherCondition]
@@ -79,7 +85,9 @@ class WeatherBot(BaseBot):
     """
 
     bot_name: str = "WeatherBot"
-    bot_description: str = "A bot that provides weather information. Just tell me a city or location."
+    bot_description: str = (
+        "A bot that provides weather information. Just tell me a city or location."
+    )
     version: str = "1.0.0"
 
     def __init__(self, **kwargs: Any) -> None:
@@ -142,30 +150,35 @@ class WeatherBot(BaseBot):
         # Get current timestamp
         current_timestamp: int = int(datetime.now().timestamp())
 
-        return cast(WeatherData, {
-            "name": location,
-            "main": {
-                "temp": 22.5,
-                "feels_like": 23.0,
-                "temp_min": 20.0,
-                "temp_max": 25.0,
-                "pressure": 1012,
-                "humidity": 65,
+        return cast(
+            WeatherData,
+            {
+                "name": location,
+                "main": {
+                    "temp": 22.5,
+                    "feels_like": 23.0,
+                    "temp_min": 20.0,
+                    "temp_max": 25.0,
+                    "pressure": 1012,
+                    "humidity": 65,
+                },
+                "weather": [
+                    {"id": 800, "main": "Clear", "description": "clear sky", "icon": "01d"}
+                ],
+                "wind": {"speed": 3.6, "deg": 160},
+                "clouds": {"all": 0},
+                "sys": {
+                    "country": "Mock",
+                    "sunrise": current_timestamp,
+                    "sunset": current_timestamp + 43200,  # 12 hours later
+                },
+                "dt": current_timestamp,
+                "timezone": 0,
+                "id": 123456,
+                "cod": 200,
+                "mock_data": True,  # Flag to indicate this is mock data
             },
-            "weather": [{"id": 800, "main": "Clear", "description": "clear sky", "icon": "01d"}],
-            "wind": {"speed": 3.6, "deg": 160},
-            "clouds": {"all": 0},
-            "sys": {
-                "country": "Mock",
-                "sunrise": current_timestamp,
-                "sunset": current_timestamp + 43200,  # 12 hours later
-            },
-            "dt": current_timestamp,
-            "timezone": 0,
-            "id": 123456,
-            "cod": 200,
-            "mock_data": True,  # Flag to indicate this is mock data
-        })
+        )
 
     def _format_weather_data(self, weather_data: WeatherData) -> str:
         """
@@ -190,8 +203,12 @@ class WeatherBot(BaseBot):
 
         # Get weather description
         weather_list = cast(List[Dict[str, Any]], weather_data.get("weather", [{}]))
-        weather_main: str = str(weather_list[0].get("main", "Unknown") if weather_list else "Unknown")
-        weather_desc: str = str(weather_list[0].get("description", "Unknown") if weather_list else "Unknown")
+        weather_main: str = str(
+            weather_list[0].get("main", "Unknown") if weather_list else "Unknown"
+        )
+        weather_desc: str = str(
+            weather_list[0].get("description", "Unknown") if weather_list else "Unknown"
+        )
 
         # Get wind data
         wind: Dict[str, Any] = cast(Dict[str, Any], weather_data.get("wind", {}))
@@ -200,7 +217,9 @@ class WeatherBot(BaseBot):
         # Get time information
         dt: int = weather_data.get("dt", 0)
         timezone_offset: int = weather_data.get("timezone", 0)
-        local_time: str = datetime.utcfromtimestamp(dt + timezone_offset).strftime("%Y-%m-%d %H:%M:%S")
+        local_time: str = datetime.utcfromtimestamp(dt + timezone_offset).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
         # Create response
         if weather_data.get("mock_data", False):

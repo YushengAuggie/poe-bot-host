@@ -14,10 +14,10 @@ from modal import App, Image, asgi_app
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("echobot")
+
 
 class EchoBot(PoeBot):
     """A simple bot that echoes back the user's message.
@@ -70,6 +70,7 @@ class EchoBot(PoeBot):
             # Return an error message
             yield PartialResponse(text=f"Echo bot error: {str(e)}")
 
+
 # Create and expose the API
 logger.info("Creating FastAPI app for EchoBot")
 api = make_app([EchoBot()], allow_without_key=True)
@@ -78,10 +79,8 @@ api = make_app([EchoBot()], allow_without_key=True)
 app = App("echobot")
 
 # Create a custom image with required dependencies
-image = (
-    Image.debian_slim()
-    .pip_install_from_requirements("requirements.txt")
-)
+image = Image.debian_slim().pip_install_from_requirements("requirements.txt")
+
 
 @app.function(image=image)
 @asgi_app()
@@ -89,6 +88,7 @@ def fastapi_app():
     """Create and return the FastAPI app for Modal deployment."""
     logger.info("Starting EchoBot for Modal deployment")
     return api
+
 
 # This allows the app to be run locally with 'python echobot.py'
 if __name__ == "__main__":

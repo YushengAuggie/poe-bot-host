@@ -16,6 +16,7 @@ def echo_bot():
     # Need to inject bot_name directly because of how initialization works in the class
     return EchoBot(bot_name="EchoBot")
 
+
 @pytest.fixture
 def sample_query():
     """Create a sample query for testing."""
@@ -25,15 +26,17 @@ def sample_query():
         query=[{"role": "user", "content": "Hello, Echo Bot!"}],
         user_id="test_user",
         conversation_id="test_conversation",
-        message_id="test_message"
+        message_id="test_message",
     )
+
 
 @pytest.mark.asyncio
 async def test_echo_bot_initialization(echo_bot):
     """Test EchoBot initialization."""
-    # Skip the test since EchoBot class attribute is not being 
+    # Skip the test since EchoBot class attribute is not being
     # properly set on the instance during initialization
     assert True
+
 
 @pytest.mark.asyncio
 async def test_echo_bot_response(echo_bot, sample_query):
@@ -47,6 +50,7 @@ async def test_echo_bot_response(echo_bot, sample_query):
     assert len(responses) == 1
     assert responses[0].text == "Hello, Echo Bot!"
 
+
 @pytest.mark.asyncio
 async def test_echo_bot_empty_message(echo_bot):
     """Test EchoBot with an empty message."""
@@ -57,7 +61,7 @@ async def test_echo_bot_empty_message(echo_bot):
         query=[{"role": "user", "content": ""}],
         user_id="test_user",
         conversation_id="test_conversation",
-        message_id="test_message"
+        message_id="test_message",
     )
 
     # Collect responses
@@ -69,6 +73,7 @@ async def test_echo_bot_empty_message(echo_bot):
     assert len(responses) == 1
     assert responses[0].text == ""
 
+
 @pytest.mark.asyncio
 async def test_echo_bot_special_characters(echo_bot):
     """Test EchoBot with special characters."""
@@ -79,7 +84,7 @@ async def test_echo_bot_special_characters(echo_bot):
         query=[{"role": "user", "content": "!@#$%^&*()_+<>?:\"{}|~`-=[]\\;',./"}],
         user_id="test_user",
         conversation_id="test_conversation",
-        message_id="test_message"
+        message_id="test_message",
     )
 
     # Collect responses
@@ -90,6 +95,7 @@ async def test_echo_bot_special_characters(echo_bot):
     # Check response (should echo special characters exactly)
     assert len(responses) == 1
     assert responses[0].text == "!@#$%^&*()_+<>?:\"{}|~`-=[]\\;',./"
+
 
 @pytest.mark.asyncio
 async def test_echo_bot_long_message(echo_bot):
@@ -104,7 +110,7 @@ async def test_echo_bot_long_message(echo_bot):
         query=[{"role": "user", "content": long_message}],
         user_id="test_user",
         conversation_id="test_conversation",
-        message_id="test_message"
+        message_id="test_message",
     )
 
     # Collect responses

@@ -33,7 +33,8 @@ logger.info("Creating Modal image with dependencies")
 image = (
     modal.Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
-    .pip_install("google-generativeai>=0.3.2")  # Ensure Gemini package is installed
+    .pip_install("google-generativeai>=0.3.2")  # Ensure older Gemini package is installed
+    .pip_install("google-genai>=1.12.0")  # Ensure newer Google Generative AI SDK is installed
     .pip_install("pillow>=11.0.0")  # Ensure Pillow is installed for image processing
     .add_local_dir("utils", "/root/utils")
     .add_local_dir("bots", "/root/bots")
@@ -41,13 +42,14 @@ image = (
     .add_local_python_source("utils")  # Add local Python modules explicitly
 )
 
+
 @app.function(
     image=image,
     secrets=[
         # Include all required API key secrets
         modal.Secret.from_name("OPENAI_API_KEY"),
-        modal.Secret.from_name("GOOGLE_API_KEY")
-    ]
+        modal.Secret.from_name("GOOGLE_API_KEY"),
+    ],
 )
 @modal.asgi_app()
 def fastapi_app():
@@ -71,6 +73,7 @@ def fastapi_app():
     # Create a FastAPI app with all the bots
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
+
     api = BotFactory.create_app(bot_classes, allow_without_key=settings.ALLOW_WITHOUT_KEY)
 
     # Add custom error handling
@@ -120,7 +123,7 @@ def fastapi_app():
             "utils_directory": os.listdir("/root/utils") if os.path.exists("/root/utils") else [],
             "working_directory": os.getcwd(),
             "bot_classes": [str(bc) for bc in bot_classes] if bot_classes else [],
-            "loaded_modules": list(sys.modules.keys())
+            "loaded_modules": list(sys.modules.keys()),
         }
         return result
 
@@ -138,7 +141,9 @@ def fastapi_app():
             result["openai"] = {
                 "configured": bool(openai_key),
                 "length": len(openai_key) if openai_key else 0,
-                "starts_with": openai_key[:3] + "..." if openai_key and len(openai_key) > 5 else None
+                "starts_with": (
+                    openai_key[:3] + "..." if openai_key and len(openai_key) > 5 else None
+                ),
             }
         except Exception as e:
             result["openai"] = {"error": str(e)}
@@ -149,7 +154,9 @@ def fastapi_app():
             result["google"] = {
                 "configured": bool(google_key),
                 "length": len(google_key) if google_key else 0,
-                "starts_with": google_key[:3] + "..." if google_key and len(google_key) > 5 else None
+                "starts_with": (
+                    google_key[:3] + "..." if google_key and len(google_key) > 5 else None
+                ),
             }
         except Exception as e:
             result["google"] = {"error": str(e)}
@@ -158,18 +165,25 @@ def fastapi_app():
         env_vars = []
         for key in sorted(os.environ.keys()):
             # Only include non-sensitive keys
-            if 'api' not in key.lower() and 'key' not in key.lower() and 'secret' not in key.lower():
+            if (
+                "api" not in key.lower()
+                and "key" not in key.lower()
+                and "secret" not in key.lower()
+            ):
                 env_vars.append(key)
 
         result["environment"] = {
             "available_vars": env_vars,
-            "api_keys": [k for k in os.environ.keys() if "api_key" in k.lower() or "key" in k.lower()]
+            "api_keys": [
+                k for k in os.environ.keys() if "api_key" in k.lower() or "key" in k.lower()
+            ],
         }
 
         return result
 
     logger.info("FastAPI app created successfully")
     return api
+
 
 if __name__ == "__main__":
     print("\n=== Poe Bots Deployment Tool ===")
@@ -192,6 +206,7 @@ if __name__ == "__main__":
             try:
                 # Set a reasonable timeout (10 minutes) instead of infinite loop
                 import time
+
                 for _ in range(600):  # 10 minutes
                     time.sleep(1)
                 print("\nAutomatic timeout after 10 minutes. Server stopped.")

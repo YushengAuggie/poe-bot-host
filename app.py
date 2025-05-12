@@ -97,8 +97,8 @@ image = (
     secrets=[
         # Include all required API key secrets
         Secret.from_name("OPENAI_API_KEY"),
-        Secret.from_name("GOOGLE_API_KEY")
-    ]
+        Secret.from_name("GOOGLE_API_KEY"),
+    ],
 )
 @asgi_app()
 def fastapi_app():

@@ -23,12 +23,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 app = App("secret-test")
 
-@app.function(
-    secrets=[
-        Secret.from_name("OPENAI_API_KEY"),
-        Secret.from_name("GOOGLE_API_KEY")
-    ]
-)
+
+@app.function(secrets=[Secret.from_name("OPENAI_API_KEY"), Secret.from_name("GOOGLE_API_KEY")])
 def test_secrets():
     """Test if the API keys are properly accessible"""
     print("Testing access to secrets...")
@@ -36,7 +32,11 @@ def test_secrets():
     # Print all environment variables
     print("\nAll environment variables:")
     for key in sorted(os.environ.keys()):
-        if 'key' not in key.lower() and 'secret' not in key.lower() and 'password' not in key.lower():
+        if (
+            "key" not in key.lower()
+            and "secret" not in key.lower()
+            and "password" not in key.lower()
+        ):
             print(f"  {key}")
         else:
             print(f"  {key}: [REDACTED]")
@@ -118,6 +118,7 @@ def test_secrets():
 
     except Exception as e:
         print(f"Error accessing secrets: {str(e)}")
+
 
 if __name__ == "__main__":
     with app.run():
