@@ -145,45 +145,104 @@ class YouTubeDownloaderBot(BaseBot):
             file_id = str(uuid.uuid4())
             output_path = os.path.join(self.temp_dir, f"{file_id}.mp4")
 
-            # yt-dlp options
+            # Enhanced yt-dlp options to attempt bypassing age restrictions
             ydl_opts = {
-                "format": "mp4[filesize<{}M]".format(max_filesize_mb),  # Limit filesize
+                # Try to find the best format under the filesize limit
+                "format": f"best[filesize<{max_filesize_mb}M]/bestvideo[filesize<{max_filesize_mb}M]+bestaudio/best",
                 "outtmpl": output_path,
                 "noplaylist": True,  # Only download the video, not the playlist
                 "quiet": False,  # Show progress
                 "no_warnings": False,
                 "noprogress": True,  # Don't show download progress bar
+
+                # Enhanced options for bypassing restrictions
+                "skip_download": False,
+                "writesubtitles": False,
+
+                # Options to help bypass restrictions
+                "age_limit": 21,  # Set higher age limit
+                "geo_bypass": True,  # Try to bypass geo-restrictions
+
+                # Try alternative extraction methods
+                "extractor_retries": 3,  # Retry extraction up to 3 times
             }
 
             logger.debug(f"Downloading video from {url} to {output_path}")
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
+            # First attempt with regular options
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+            except yt_dlp.utils.DownloadError as e:
+                error_msg = str(e)
 
-                # Check if the file was downloaded successfully
-                if not os.path.exists(output_path):
-                    # Try to find the actual output file (yt-dlp might have added an extension)
-                    possible_files = [
-                        f
-                        for f in os.listdir(self.temp_dir)
-                        if f.startswith(file_id) or f.startswith(os.path.basename(output_path))
-                    ]
+                # If the error mentions sign-in or age restriction, try alternative method
+                if "Sign in" in error_msg or "age" in error_msg.lower():
+                    logger.info("Detected age restriction, trying alternative method")
 
-                    if possible_files:
-                        output_path = os.path.join(self.temp_dir, possible_files[0])
-                    else:
-                        raise BotError(f"Failed to download video from {url}")
+                    # Update options for age-restricted content
+                    ydl_opts.update({
+                        "age_limit": 30,  # Maximum possible
+                        "youtube_include_dash_manifest": True,
 
-                # Verify filesize
-                filesize = os.path.getsize(output_path) / (1024 * 1024)  # Convert to MB
-                if filesize > max_filesize_mb:
-                    os.remove(output_path)
-                    raise BotErrorNoRetry(
-                        f"Video filesize ({filesize:.1f}MB) exceeds the maximum allowed size ({max_filesize_mb}MB)"
-                    )
+                        # Use a more common browser user-agent
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    })
 
-                logger.debug(f"Downloaded video to {output_path}, size: {filesize:.1f}MB")
-                return output_path
+                    # Try again with enhanced options
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                else:
+                    # Re-raise the original error if it's not related to age restriction
+                    raise
+
+            # Check if the file was downloaded successfully
+            if not os.path.exists(output_path):
+                # Try to find the actual output file (yt-dlp might have added an extension)
+                possible_files = [
+                    f
+                    for f in os.listdir(self.temp_dir)
+                    if f.startswith(file_id) or f.startswith(os.path.basename(output_path))
+                ]
+
+                if possible_files:
+                    output_path = os.path.join(self.temp_dir, possible_files[0])
+                else:
+                    # Last resort fallback - try one more method
+                    ydl_opts.update({
+                        "format": "best",
+                        "merge_output_format": "mp4"
+                    })
+
+                    try:
+                        logger.info("Trying final fallback method for restricted content")
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            info = ydl.extract_info(url, download=True)
+
+                        # Check again for created files
+                        possible_files = [
+                            f
+                            for f in os.listdir(self.temp_dir)
+                            if f.startswith(file_id) or f.startswith(os.path.basename(output_path))
+                        ]
+
+                        if possible_files:
+                            output_path = os.path.join(self.temp_dir, possible_files[0])
+                        else:
+                            raise BotError(f"Failed to download video from {url} after multiple attempts")
+                    except Exception as fallback_error:
+                        raise BotError(f"Failed to download video from {url}: {str(fallback_error)}")
+
+            # Verify filesize
+            filesize = os.path.getsize(output_path) / (1024 * 1024)  # Convert to MB
+            if filesize > max_filesize_mb:
+                os.remove(output_path)
+                raise BotErrorNoRetry(
+                    f"Video filesize ({filesize:.1f}MB) exceeds the maximum allowed size ({max_filesize_mb}MB)"
+                )
+
+            logger.debug(f"Downloaded video to {output_path}, size: {filesize:.1f}MB")
+            return output_path
 
         except yt_dlp.utils.DownloadError as e:
             error_msg = str(e)
@@ -193,8 +252,14 @@ class YouTubeDownloaderBot(BaseBot):
                 raise BotErrorNoRetry("This video is unavailable or private.")
             elif "Video unavailable" in error_msg:
                 raise BotErrorNoRetry("This video is unavailable or has been removed.")
+            elif "Sign in" in error_msg and "age" in error_msg.lower():
+                raise BotErrorNoRetry("Could not bypass age restriction for this video. Try a different video.")
             elif "Sign in" in error_msg:
-                raise BotErrorNoRetry("This video requires age verification or sign-in to view.")
+                raise BotErrorNoRetry("Could not bypass sign-in requirement for this video. Try a different video.")
+            elif "copyright" in error_msg.lower():
+                raise BotErrorNoRetry("This video is not available due to copyright restrictions.")
+            elif "geo" in error_msg.lower() or "country" in error_msg.lower():
+                raise BotErrorNoRetry("This video is not available in your region due to geographical restrictions.")
             else:
                 raise BotError(f"Error downloading the video: {error_msg}")
 
