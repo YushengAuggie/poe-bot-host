@@ -16,7 +16,6 @@ from urllib.parse import urlparse
 
 from fastapi_poe.types import (
     Attachment,
-    AttachmentContent,
     ContentType,
     MetaResponse,
     PartialResponse,
@@ -230,7 +229,7 @@ class YouTubeDownloaderBot(BaseBot):
             attachment = Attachment(
                 name=filename,
                 content_type=ContentType.mp4,
-                data=AttachmentContent(data=file_content),
+                data=file_content,
             )
 
             return attachment
