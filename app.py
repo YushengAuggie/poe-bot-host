@@ -9,7 +9,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from modal import App, Image, asgi_app
+from modal import App, Image, Secret, asgi_app
 
 from utils.bot_factory import BotFactory
 from utils.config import settings
@@ -18,6 +18,7 @@ from utils.config import settings
 logger = logging.getLogger("poe_bots.app")
 
 __version__ = "1.0.0"
+
 
 def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
     """Create and configure the FastAPI app with all available bots.
@@ -44,7 +45,7 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
         logger.exception("Unhandled exception occurred:")
         return JSONResponse(
             status_code=500,
-            content={"error": "An internal server error occurred", "detail": str(exc)}
+            content={"error": "An internal server error occurred", "detail": str(exc)},
         )
 
     # Add a health check endpoint
@@ -60,8 +61,8 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
             "environment": {
                 "debug": settings.DEBUG,
                 "log_level": settings.LOG_LEVEL,
-                "allow_without_key": settings.ALLOW_WITHOUT_KEY
-            }
+                "allow_without_key": settings.ALLOW_WITHOUT_KEY,
+            },
         }
 
     # Add a bot list endpoint
@@ -71,6 +72,7 @@ def create_api(allow_without_key: bool = settings.ALLOW_WITHOUT_KEY) -> FastAPI:
         return BotFactory.get_available_bots()
 
     return api
+
 
 # Create the API
 api = create_api()
@@ -82,17 +84,28 @@ app = App(settings.MODAL_APP_NAME)
 image = (
     Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
-    .copy_local_dir("utils", "/root/utils")
-    .copy_local_dir("bots", "/root/bots")
-    .copy_local_dir("tests", "/root/tests")
+    .pip_install("google-generativeai>=0.3.2")  # Ensure Gemini package is installed
+    .add_local_dir("utils", "/root/utils")
+    .add_local_dir("bots", "/root/bots")
+    .add_local_dir("tests", "/root/tests")
+    .add_local_python_source("utils")  # Add local Python modules explicitly
 )
 
-@app.function(image=image)
+
+@app.function(
+    image=image,
+    secrets=[
+        # Include all required API key secrets
+        Secret.from_name("OPENAI_API_KEY"),
+        Secret.from_name("GOOGLE_API_KEY"),
+    ],
+)
 @asgi_app()
 def fastapi_app():
     """Create and return the FastAPI app for Modal deployment."""
     logger.info("Starting FastAPI app for Modal deployment")
     return api
+
 
 # This allows the app to be run locally with 'python app.py'
 if __name__ == "__main__":

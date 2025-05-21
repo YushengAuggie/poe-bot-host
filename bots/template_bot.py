@@ -15,6 +15,7 @@ from utils.base_bot import BaseBot
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 class TemplateBot(BaseBot):
     """Template for creating a new bot.
 
@@ -31,7 +32,9 @@ class TemplateBot(BaseBot):
     max_message_length = 2000
     stream_response = True
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response.
 
         Args:

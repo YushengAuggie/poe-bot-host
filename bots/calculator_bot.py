@@ -17,6 +17,7 @@ from utils.base_bot import BaseBot
 
 logger = logging.getLogger(__name__)
 
+
 class CalculatorBot(BaseBot):
     """
     A bot that performs mathematical calculations.
@@ -30,7 +31,9 @@ class CalculatorBot(BaseBot):
     """
 
     bot_name = "CalculatorBot"
-    bot_description = "A calculator bot that can perform mathematical calculations and unit conversions."
+    bot_description = (
+        "A calculator bot that can perform mathematical calculations and unit conversions."
+    )
     version = "1.0.0"
 
     # Constants for calculations
@@ -39,10 +42,10 @@ class CalculatorBot(BaseBot):
 
     # Available operations
     OPERATIONS = {
-        'basic': ['add', 'subtract', 'multiply', 'divide', 'power', 'sqrt', 'factorial'],
-        'trig': ['sin', 'cos', 'tan', 'asin', 'acos', 'atan'],
-        'logarithmic': ['log', 'ln', 'log10'],
-        'conversion': ['c_to_f', 'f_to_c', 'km_to_miles', 'miles_to_km', 'kg_to_lbs', 'lbs_to_kg']
+        "basic": ["add", "subtract", "multiply", "divide", "power", "sqrt", "factorial"],
+        "trig": ["sin", "cos", "tan", "asin", "acos", "atan"],
+        "logarithmic": ["log", "ln", "log10"],
+        "conversion": ["c_to_f", "f_to_c", "km_to_miles", "miles_to_km", "kg_to_lbs", "lbs_to_kg"],
     }
 
     def _parse_expression(self, expression: str) -> Union[float, str]:
@@ -59,20 +62,20 @@ class CalculatorBot(BaseBot):
         expression = expression.strip().lower()
 
         # Handle specific functions
-        if expression.startswith(('sin(', 'cos(', 'tan(', 'log(', 'ln(', 'sqrt(')):
+        if expression.startswith(("sin(", "cos(", "tan(", "log(", "ln(", "sqrt(")):
             return self._evaluate_function(expression)
 
         # Basic arithmetic evaluation (careful with security!)
         try:
             # Replace ^ with ** for exponentiation
-            expression = expression.replace('^', '**')
+            expression = expression.replace("^", "**")
 
             # Replace constants with their values
-            expression = expression.replace('pi', str(self.PI))
-            expression = expression.replace('e', str(self.E))
+            expression = expression.replace("pi", str(self.PI))
+            expression = expression.replace("e", str(self.E))
 
             # Validate the expression (only allow safe characters)
-            if not re.match(r'^[0-9+\-*/().\s**]+$', expression):
+            if not re.match(r"^[0-9+\-*/().\s**]+$", expression):
                 return "Invalid expression. Only basic arithmetic operations are allowed."
 
             # Evaluate the expression
@@ -89,7 +92,7 @@ class CalculatorBot(BaseBot):
         """Evaluate a function expression like sin(30), log(100), etc."""
         try:
             # Extract function name and argument
-            match = re.match(r'([a-z]+)\(([^)]+)\)', expression)
+            match = re.match(r"([a-z]+)\(([^)]+)\)", expression)
             if not match:
                 return "Invalid function format. Use function(value)."
 
@@ -101,23 +104,23 @@ class CalculatorBot(BaseBot):
                 return arg  # If arg evaluation returned an error
 
             # Handle different functions
-            if func_name == 'sin':
+            if func_name == "sin":
                 return math.sin(arg)
-            elif func_name == 'cos':
+            elif func_name == "cos":
                 return math.cos(arg)
-            elif func_name == 'tan':
+            elif func_name == "tan":
                 return math.tan(arg)
-            elif func_name == 'asin':
+            elif func_name == "asin":
                 return math.asin(arg)
-            elif func_name == 'acos':
+            elif func_name == "acos":
                 return math.acos(arg)
-            elif func_name == 'atan':
+            elif func_name == "atan":
                 return math.atan(arg)
-            elif func_name == 'log' or func_name == 'ln':
+            elif func_name == "log" or func_name == "ln":
                 return math.log(arg)
-            elif func_name == 'log10':
+            elif func_name == "log10":
                 return math.log10(arg)
-            elif func_name == 'sqrt':
+            elif func_name == "sqrt":
                 return math.sqrt(arg)
             else:
                 return f"Unknown function: {func_name}"
@@ -137,18 +140,18 @@ class CalculatorBot(BaseBot):
         Returns:
             Tuple of (converted value, unit string)
         """
-        if conversion_type == 'c_to_f':
-            return (value * 9/5) + 32, '°F'
-        elif conversion_type == 'f_to_c':
-            return (value - 32) * 5/9, '°C'
-        elif conversion_type == 'km_to_miles':
-            return value * 0.621371, 'miles'
-        elif conversion_type == 'miles_to_km':
-            return value * 1.60934, 'km'
-        elif conversion_type == 'kg_to_lbs':
-            return value * 2.20462, 'lbs'
-        elif conversion_type == 'lbs_to_kg':
-            return value * 0.453592, 'kg'
+        if conversion_type == "c_to_f":
+            return (value * 9 / 5) + 32, "°F"
+        elif conversion_type == "f_to_c":
+            return (value - 32) * 5 / 9, "°C"
+        elif conversion_type == "km_to_miles":
+            return value * 0.621371, "miles"
+        elif conversion_type == "miles_to_km":
+            return value * 1.60934, "km"
+        elif conversion_type == "kg_to_lbs":
+            return value * 2.20462, "lbs"
+        elif conversion_type == "lbs_to_kg":
+            return value * 0.453592, "kg"
         else:
             raise ValueError(f"Unknown conversion type: {conversion_type}")
 
@@ -157,7 +160,9 @@ class CalculatorBot(BaseBot):
         try:
             # Parse conversion request
             # Format: "convert 100 c to f", "convert 10 km to miles", etc.
-            match = re.match(r'convert\s+(\d+(?:\.\d+)?)\s+([a-z]+)\s+to\s+([a-z]+)', message.lower())
+            match = re.match(
+                r"convert\s+(\d+(?:\.\d+)?)\s+([a-z]+)\s+to\s+([a-z]+)", message.lower()
+            )
             if not match:
                 return "Invalid conversion format. Use 'convert {value} {from_unit} to {to_unit}'."
 
@@ -166,7 +171,7 @@ class CalculatorBot(BaseBot):
 
             # Determine conversion type
             conversion_type = f"{from_unit}_to_{to_unit}"
-            if conversion_type not in self.OPERATIONS['conversion']:
+            if conversion_type not in self.OPERATIONS["conversion"]:
                 return f"Unsupported conversion: {from_unit} to {to_unit}"
 
             # Perform conversion
@@ -208,7 +213,9 @@ I can perform various mathematical calculations. You can:
 Type a calculation to begin!
 """
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response for calculator functions."""
         try:
             # Extract the query contents
@@ -232,7 +239,9 @@ Type a calculation to begin!
 
             # Empty query
             if not message:
-                yield PartialResponse(text="Please enter a calculation. Type 'help' for instructions.")
+                yield PartialResponse(
+                    text="Please enter a calculation. Type 'help' for instructions."
+                )
                 return
 
             # Unit conversion
@@ -255,7 +264,7 @@ Type a calculation to begin!
                     if isinstance(result, float) and result.is_integer():
                         formatted_result = str(int(result))
                     else:
-                        formatted_result = f"{result:.6f}".rstrip('0').rstrip('.')
+                        formatted_result = f"{result:.6f}".rstrip("0").rstrip(".")
                 else:
                     formatted_result = str(result)
 

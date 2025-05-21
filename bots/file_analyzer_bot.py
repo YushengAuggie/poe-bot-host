@@ -323,7 +323,9 @@ class FileAnalyzerBot(BaseBot):
 
         return response
 
-    async def _process_message(self, message: str, query: QueryRequest) -> AsyncGenerator[PartialResponse, None]:
+    async def _process_message(
+        self, message: str, query: QueryRequest
+    ) -> AsyncGenerator[PartialResponse, None]:
         """Process the user's message and handle file uploads. (Deprecated)"""
         logger.warning(
             f"[{self.bot_name}] _process_message is deprecated, use get_response instead. This method will be removed in a future version."

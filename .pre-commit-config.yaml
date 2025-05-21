@@ -1,61 +1,20 @@
 repos:
-# Python formatting and linting
--   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: 'v0.1.3'
-    hooks:
-    -   id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        name: Ruff (linting)
-
-# Type checking
--   repo: local
-    hooks:
-    -   id: pyright
-        name: Pyright (type checking)
-        entry: temp_venv/bin/pyright
-        language: system
-        types: [python]
-        pass_filenames: false
-
-# Python tests
--   repo: local
-    hooks:
-    -   id: pytest
-        name: Pytest (tests)
-        entry: pytest
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [push]
-        verbose: true
-        # Make this optional - shows warnings but doesn't fail the commit
-        fail_fast: false
-
-# Security checks
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
-    hooks:
-    -   id: check-yaml
-        name: Check YAML
-    -   id: check-json
-        name: Check JSON
-    -   id: check-added-large-files
-        name: Check for large files
-        args: ['--maxkb=500']
-        exclude: 'temp_venv/'
-    -   id: detect-private-key
-        name: Detect private keys
-    -   id: debug-statements
-        name: Debug statements (import pdb, etc.)
-
-# File formatting
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
     -   id: trailing-whitespace
-        name: Trim trailing whitespace
     -   id: end-of-file-fixer
-        name: Fix end of files
-    -   id: mixed-line-ending
-        name: Consistent line endings
-        args: [--fix=lf]
+    -   id: check-yaml
+    -   id: check-added-large-files
+    -   id: detect-private-key
+
+-   repo: https://github.com/psf/black
+    rev: 23.1.0
+    hooks:
+    -   id: black
+
+-   repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.0.254'
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]

@@ -9,13 +9,16 @@ from utils.base_bot import BaseBot
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 class ReverseBot(BaseBot):
     """A bot that reverses the user's message."""
 
     # Override the bot name
     bot_name = "ReverseBot"
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response.
 
         Args:

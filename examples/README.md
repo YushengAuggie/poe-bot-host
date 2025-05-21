@@ -13,6 +13,19 @@ To deploy:
 modal deploy examples/standalone_echobot.py
 ```
 
+### Modal Bot Example (`modal_bot_example.py`)
+
+An example demonstrating how to use API keys with Modal, including support for both local development and Modal deployment.
+
+To run:
+```bash
+# Run locally
+python examples/modal_bot_example.py --local
+
+# Deploy to Modal
+modal deploy examples/modal_bot_example.py
+```
+
 ### WeatherBot (`weather_bot.py`)
 
 A more sophisticated example bot that simulates a weather service. This demonstrates:
@@ -28,6 +41,10 @@ See `add_weather_bot.md` for a guide on adding this bot to your framework.
 ### Add Weather Bot (`add_weather_bot.md`)
 
 A step-by-step guide showing how to add the WeatherBot to your framework and deploy it.
+
+### API Key Management (`api_key_management.md`)
+
+A comprehensive guide on managing API keys and secrets for both local development and Modal deployment, with examples for OpenAI and Google APIs.
 
 ## Creating Your Own Examples
 

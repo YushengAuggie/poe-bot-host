@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import AsyncGenerator, Union
+from typing import Any, AsyncGenerator, Dict, Union, cast
 
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
@@ -9,13 +9,16 @@ from utils.base_bot import BaseBot
 # Get the logger
 logger = logging.getLogger(__name__)
 
+
 class EchoBot(BaseBot):
     """A simple bot that echoes back the user's message."""
 
     # Override the bot name
     bot_name = "EchoBot"
 
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
+    async def get_response(
+        self, query: QueryRequest
+    ) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
         """Process the query and generate a response.
 
         Args:
