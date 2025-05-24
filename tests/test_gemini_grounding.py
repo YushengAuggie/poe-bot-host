@@ -174,11 +174,7 @@ def test_prepare_grounding_config_disabled(gemini_bot, sample_grounding_source):
     assert config is None
 
 
-@pytest.mark.asyncio
-async def test_grounding_in_api_call(gemini_bot, sample_query, sample_grounding_source):
-    """Test that grounding config is included in the API call."""
-    # Skip this test since the grounding handling has changed after refactoring
-    pytest.skip("Grounding handling has changed after refactoring")
+# test_grounding_in_api_call removed - no longer applicable after refactoring
 
 
 @pytest.mark.asyncio
@@ -221,8 +217,4 @@ async def test_set_citations_enabled():
         assert "includeCitations" not in config
 
 
-@pytest.mark.asyncio
-async def test_multimodal_with_grounding(gemini_bot, sample_query, sample_grounding_source):
-    """Test that grounding works with multimodal content."""
-    # Skip this test since the grounding handling has changed after refactoring
-    pytest.skip("Grounding handling has changed after refactoring")
+# test_multimodal_with_grounding removed - no longer applicable after refactoring
