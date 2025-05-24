@@ -174,9 +174,6 @@ def test_prepare_grounding_config_disabled(gemini_bot, sample_grounding_source):
     assert config is None
 
 
-# test_grounding_in_api_call removed - no longer applicable after refactoring
-
-
 @pytest.mark.asyncio
 async def test_set_citations_enabled():
     """Test enabling and disabling citations."""
@@ -215,6 +212,3 @@ async def test_set_citations_enabled():
         config = pro_bot._prepare_grounding_config()
         assert config is not None
         assert "includeCitations" not in config
-
-
-# test_multimodal_with_grounding removed - no longer applicable after refactoring

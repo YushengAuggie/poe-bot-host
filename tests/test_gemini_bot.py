@@ -291,9 +291,6 @@ async def test_process_unsupported_attachment(gemini_base_bot, unsupported_attac
     assert media_data is None
 
 
-# test_bot_info_request removed - no longer applicable after refactoring
-
-
 @pytest.mark.asyncio
 async def test_get_settings(gemini_bot):
     """Test get_settings returns appropriate settings."""
@@ -361,24 +358,6 @@ async def test_multimodal_input_handling(gemini_bot, sample_query_with_image):
         # Combine all text responses to verify content
         full_text = "".join([r.text for r in responses if hasattr(r, "text")])
         assert "I see an image" in full_text
-
-
-# test_image_output_handling_base64_fallback removed - no longer applicable after refactoring
-
-
-# test_image_output_handling_poe_attachment removed - no longer applicable after refactoring
-
-
-# test_image_output_different_mime_types removed - no longer applicable after refactoring
-
-
-# test_image_upload_error_handling removed - no longer applicable after refactoring
-
-
-# test_multiple_images_in_response removed - no longer applicable after refactoring
-
-
-# test_large_image_handling removed - no longer applicable after refactoring
 
 
 @pytest.mark.asyncio
@@ -512,11 +491,6 @@ async def test_direct_response_object_handling(gemini_base_bot):
     assert responses[0].text == "Direct non-iterable response text"
 
 
-# This test was skipped due to needing refinement. After analysis, it's better to remove it
-# since the internal implementation has changed significantly after refactoring.
-# The error handling logic is now tested in other test cases.
-
-
 @pytest.mark.asyncio
 async def test_process_user_query_helper(
     gemini_base_bot, sample_query_with_text, sample_query_with_image
@@ -643,9 +617,6 @@ async def test_client_stub_compatibility(gemini_base_bot):
     assert "not available" in chunks[0].text
 
 
-# test_image_resize_fallback removed - no longer applicable after refactoring
-
-
 @pytest.mark.asyncio
 async def test_prepare_content(gemini_base_bot):
     """Test the _prepare_content helper method."""
@@ -718,9 +689,6 @@ async def test_prepare_content(gemini_base_bot):
     # Third message should be updated
     assert content_with_history_updated[2]["role"] == "user"
     assert content_with_history_updated[2]["parts"][0]["text"] == "New message"  # Updated
-
-
-# test_multiturn_conversation removed - no longer applicable after refactoring
 
 
 @pytest.mark.asyncio
@@ -917,9 +885,3 @@ def test_client_stub_functionality():
     assert len(chunks) == 1
     assert hasattr(chunks[0], "text")
     assert "not available" in chunks[0].text
-
-
-# The previous skipped tests for get_client functionality have been analyzed and removed
-# because they relied on implementation details that have changed after refactoring.
-# Instead, we've added comprehensive tests for the GeminiClientStub which is the key
-# fallback mechanism.
