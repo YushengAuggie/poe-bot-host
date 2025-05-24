@@ -273,7 +273,7 @@ async def test_full_multimodal_query_flow(gemini_bot, sample_query_with_media, m
     with (
         patch.dict("sys.modules", mock_modules),
         patch("bots.gemini.get_client", return_value=mock_client),
-        patch("bots.gemini.get_api_key", return_value="test_api_key"),
+        # get_api_key is already mocked in conftest.py
         patch.object(gemini_bot.__class__, "get_response", mock_get_response_wrapper),
         url_mock if url_mock else nullcontext(),
     ):

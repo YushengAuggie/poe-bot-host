@@ -4,6 +4,7 @@ Pytest configuration for the Poe Bots Framework.
 
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -13,6 +14,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # Set testing environment variables
 os.environ["POE_ALLOW_WITHOUT_KEY"] = "true"
 os.environ["DEBUG"] = "true"
+
+
+@pytest.fixture(autouse=True)
+def mock_get_api_key():
+    """Mock get_api_key to return a test API key."""
+    with patch("utils.api_keys.get_api_key", return_value="test_api_key"):
+        yield
 
 
 @pytest.fixture

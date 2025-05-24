@@ -207,10 +207,8 @@ async def test_text_only_streaming_response(gemini_bot, sample_query_with_text):
         for chunk in stream_chunks:
             yield PartialResponse(text=chunk)
 
-    # Patch all dependencies
-    with patch("bots.gemini.get_api_key", return_value="test_api_key"), patch.object(
-        gemini_bot.__class__, "get_response", side_effect=mock_get_response
-    ):
+    # Patch the class's get_response method
+    with patch.object(gemini_bot.__class__, "get_response", side_effect=mock_get_response):
         # The original function checks for API key, so we need to make sure our patch
         # is applied to the class, not the instance
 

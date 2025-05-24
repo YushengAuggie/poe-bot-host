@@ -86,11 +86,10 @@ async def test_help_request(image_generation_bot):
         message_id="test_message",
     )
 
-    # Patch the API key check to always return a test key
-    with patch("bots.gemini.get_api_key", return_value="test_api_key"):
-        responses = []
-        async for response in image_generation_bot.get_response(help_query):
-            responses.append(response)
+    # get_api_key is already mocked in conftest.py
+    responses = []
+    async for response in image_generation_bot.get_response(help_query):
+        responses.append(response)
 
         # Verify help response
         assert len(responses) >= 1
@@ -133,7 +132,7 @@ async def test_successful_image_generation(image_generation_bot, image_request):
 
     # Patch necessary dependencies
     with (
-        patch("bots.gemini.get_api_key", return_value="test_api_key"),
+        # get_api_key is already mocked in conftest.py
         patch.object(
             image_generation_bot, "post_message_attachment", return_value=mock_attachment_response
         ),
@@ -167,7 +166,8 @@ async def test_successful_image_generation(image_generation_bot, image_request):
 async def test_api_key_missing(image_generation_bot, image_request):
     """Test handling of missing API key."""
     # Patch necessary dependencies to simulate missing API key
-    with patch("bots.gemini.get_api_key", return_value=None):
+    # Override the mock in conftest.py to return None
+    with patch("utils.api_keys.get_api_key", return_value=None):
         responses = []
         async for response in image_generation_bot.get_response(image_request):
             responses.append(response)

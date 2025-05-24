@@ -102,11 +102,10 @@ async def test_gemini_direct_image_generation(gemini_flash_exp_bot, image_genera
         yield PartialResponse(text="Generated image:")
         yield PartialResponse(text="![gemini_image_12345.jpg][test_ref_123]")
 
-    # Mock the get_api_key function to avoid API key errors
+    # get_api_key is already mocked in conftest.py
     with (
         patch.dict("sys.modules", mock_modules),
         patch("bots.gemini.get_client", return_value=mock_client),
-        patch("utils.api_keys.get_api_key", return_value="test_api_key"),
         patch.object(
             gemini_flash_exp_bot, "post_message_attachment", return_value=mock_attachment_response
         ),
@@ -185,7 +184,7 @@ async def test_text_only_response_to_image_request(gemini_flash_exp_bot, image_g
     with (
         patch.dict("sys.modules", mock_modules),
         patch("bots.gemini.get_client", return_value=mock_client),
-        patch("utils.api_keys.get_api_key", return_value="test_api_key"),
+        # get_api_key is already mocked in conftest.py
         patch.object(
             gemini_flash_exp_bot, "_process_user_query", side_effect=mock_process_user_query
         ),
@@ -231,7 +230,7 @@ async def test_error_handling_in_image_generation(gemini_flash_exp_bot, image_ge
     with (
         patch.dict("sys.modules", mock_modules),
         patch("bots.gemini.get_client", return_value=mock_client),
-        patch("utils.api_keys.get_api_key", return_value="test_api_key"),
+        # get_api_key is already mocked in conftest.py
     ):
         # Save original method and replace
         orig_get_response = gemini_flash_exp_bot.get_response
@@ -296,7 +295,7 @@ async def test_alternative_image_generation_commands(gemini_flash_exp_bot):
         with (
             patch.dict("sys.modules", mock_modules),
             patch("bots.gemini.get_client", return_value=mock_client),
-            patch("utils.api_keys.get_api_key", return_value="test_api_key"),
+            # get_api_key is already mocked in conftest.py
         ):
             # Save original method and replace for each command
             orig_get_response = gemini_flash_exp_bot.get_response
