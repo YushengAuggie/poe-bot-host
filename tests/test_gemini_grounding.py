@@ -213,22 +213,24 @@ async def test_grounding_in_api_call(gemini_bot, sample_query, sample_grounding_
     async def mock_process_user_query(*args, **kwargs):
         yield PartialResponse(text="Response with grounding")
 
-    # Process query
-    with (
-        patch.dict("sys.modules", mock_modules),
-        patch("bots.gemini.get_client", return_value=mock_client),
-        patch.object(gemini_bot, "_process_user_query", side_effect=mock_process_user_query),
-    ):
-        responses = []
-        async for response in gemini_bot.get_response(sample_query):
-            responses.append(response)
+    # Mock the API key
+    with patch("utils.api_keys.get_api_key", return_value="test_api_key"):
+        # Process query
+        with (
+            patch.dict("sys.modules", mock_modules),
+            patch("bots.gemini_core.client.get_client", return_value=mock_client),
+            patch.object(gemini_bot, "_process_user_query", side_effect=mock_process_user_query),
+        ):
+            responses = []
+            async for response in gemini_bot.get_response(sample_query):
+                responses.append(response)
 
-        # Since we're mocking _process_user_query directly, we're not verifying the call to generate_content
-        # but checking that the mock process was called correctly and returns expected output
+            # Since we're mocking _process_user_query directly, we're not verifying the call to generate_content
+            # but checking that the mock process was called correctly and returns expected output
 
-        # Verify response
-        assert len(responses) == 1
-        assert "Response with grounding" in responses[0].text
+            # Verify response
+            assert len(responses) == 1
+            assert "Response with grounding" in responses[0].text
 
 
 @pytest.mark.asyncio
@@ -294,29 +296,31 @@ async def test_multimodal_with_grounding(gemini_bot, sample_query, sample_ground
     async def mock_multimodal_generator(*args, **kwargs):
         yield PartialResponse(text="Response with multimodal content and grounding")
 
-    # Mock the processing
-    with (
-        patch.dict("sys.modules", mock_modules),
-        patch.object(gemini_bot, "_extract_attachments", return_value=["mock_image"]),
-        patch.object(
-            gemini_bot,
-            "_prepare_media_parts",
-            return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}],
-        ),
-        patch.object(
-            gemini_bot,
-            "_process_multimodal_content",
-            side_effect=mock_multimodal_generator,
-        ),
-        patch("bots.gemini.get_client", return_value=mock_client),
-    ):
-        responses = []
-        async for response in gemini_bot.get_response(sample_query):
-            responses.append(response)
+    # Mock the API key
+    with patch("utils.api_keys.get_api_key", return_value="test_api_key"):
+        # Mock the processing
+        with (
+            patch.dict("sys.modules", mock_modules),
+            patch.object(gemini_bot, "_extract_attachments", return_value=["mock_image"]),
+            patch.object(
+                gemini_bot,
+                "_prepare_media_parts",
+                return_value=[{"mime_type": "image/jpeg", "data": b"fake-image-data"}],
+            ),
+            patch.object(
+                gemini_bot,
+                "_process_multimodal_content",
+                side_effect=mock_multimodal_generator,
+            ),
+            patch("bots.gemini_core.client.get_client", return_value=mock_client),
+        ):
+            responses = []
+            async for response in gemini_bot.get_response(sample_query):
+                responses.append(response)
 
-        # Process multimodal content was called
-        assert gemini_bot._process_multimodal_content.called
+            # Process multimodal content was called
+            assert gemini_bot._process_multimodal_content.called
 
-        # Verify response
-        assert len(responses) == 1
-        assert responses[0].text == "Response with multimodal content and grounding"
+            # Verify response
+            assert len(responses) == 1
+            assert responses[0].text == "Response with multimodal content and grounding"

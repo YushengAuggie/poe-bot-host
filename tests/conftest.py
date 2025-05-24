@@ -16,10 +16,37 @@ os.environ["POE_ALLOW_WITHOUT_KEY"] = "true"
 os.environ["DEBUG"] = "true"
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)
 def mock_get_api_key():
-    """Mock get_api_key to return a test API key."""
+    """Mock get_api_key to return a test API key.
+
+    This is NOT auto-used to avoid interfering with tests that need specific API key values.
+    Apply this fixture explicitly to tests that need a generic API key.
+    """
     with patch("utils.api_keys.get_api_key", return_value="test_api_key"):
+        yield
+
+
+class NoRaiseMock:
+    """A helper to avoid ValueError being raised by get_api_key."""
+
+    def __init__(self, return_value="test_api_key"):
+        self.return_value = return_value
+
+    def __call__(self, key_name):
+        return self.return_value
+
+
+@pytest.fixture(autouse=True)
+def allow_api_key_access(request):
+    """Ensure API key checks don't fail in tests by default."""
+    # Skip this fixture for test_modal_integration.py
+    if request.module.__name__.endswith("test_modal_integration"):
+        yield
+        return
+
+    # For most tests, just make sure get_api_key doesn't raise errors
+    with patch("utils.api_keys.get_api_key", NoRaiseMock()):
         yield
 
 
