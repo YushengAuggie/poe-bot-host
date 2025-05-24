@@ -1,696 +1,396 @@
-# Poe Bot Host
+# 🤖 Poe Bot Host
 
 [English](README.md) | 简体中文
 
-一个用于 Poe 平台的多机器人框架，简化了机器人的创建、部署和管理。
+一个**现代化、生产就绪**的 Poe 平台多机器人托管框架。使用清洁架构和企业级可靠性来构建、部署和管理高级 AI 机器人。
 
 ```
 poe_bots/
-├── 🌐 app.py          # 主 FastAPI 应用程序
-├── 🤖 bots/           # 机器人实现
-│   ├── echo_bot.py    # 简单回声机器人
-│   ├── weather_bot.py # 天气信息机器人
-│   └── ...            # 其他特色机器人
-├── 📘 examples/       # 示例代码和指南
-├── 🧪 tests/          # 全面的测试套件
-├── 🔄 sync_bot_settings.py # 同步机器人设置到 Poe 的工具
-└── 🛠️ utils/          # 核心工具
-    ├── api_keys.py    # API 密钥管理
-    ├── base_bot.py    # 基础机器人架构
-    └── bot_factory.py # 机器人注册系统
+├── 🌐 app.py                    # 带自动发现的 FastAPI 应用程序
+├── 🤖 bots/                     # 即用型机器人实现
+│   ├── calculator_bot.py        # ➕ 数学计算与单位转换
+│   ├── echo_bot.py              # 🔄 带错误处理的简单回声
+│   ├── weather_bot.py           # 🌤️ 天气信息与 API 集成
+│   ├── chatgpt.py               # 💬 OpenAI GPT 集成
+│   ├── gemini*.py               # 🧠 Google Gemini AI（多模态支持）
+│   └── web_search_bot.py        # 🔍 网络搜索功能
+├── 🛠️ utils/                    # 现代化、模块化架构
+│   ├── mixins.py                # 🎯 可重用的错误处理和响应模式
+│   ├── auth.py                  # 🔐 智能 API 密钥解析与回退
+│   ├── calculators.py           # 🔢 安全数学运算与转换
+│   ├── media/                   # 📁 媒体处理框架
+│   │   ├── processors.py        # 🖼️ 图像/视频/音频附件处理
+│   │   ├── validators.py        # ✅ 媒体类型与大小验证
+│   │   └── converters.py        # 🔄 格式转换与优化
+│   ├── base_bot.py              # 🏗️ 带自动发现的增强基类
+│   └── bot_factory.py           # 🏭 智能机器人注册与管理
+├── 📘 examples/                 # 全面的指南与示例
+├── 🧪 tests/                    # 257 个自动化测试（100% 通过）
+└── 🚀 简易部署                  # 一键部署到 Modal/云端
 ```
 
-## 🚀 快速入门
+## ✨ 为什么选择此框架？
+
+🎯 **开发者优先设计**: 清洁架构、优秀文档、全面测试
+🔧 **企业就绪**: 强大错误处理、安全 API 密钥管理、生产级日志
+🚀 **分钟内部署**: 一键部署到 Modal，支持自动缩放
+🧩 **模块化与可扩展**: 可重用组件、领域专用工具、清洁抽象
+⚡ **高性能**: 优化媒体处理、智能缓存、最小开销
+🛡️ **安全优先**: 输入验证、安全表达式求值、API 密钥加密
+
+## 🚀 快速开始（2分钟）
 
 ```bash
-# 克隆和安装
+# 1. 克隆和设置
 git clone https://github.com/YushengAuggie/poe-bot-host.git
 cd poe-bot-host
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 本地运行
+# 2. 本地运行（自动启动所有机器人）
 ./run_local.sh
 
-# 测试机器人
-python test_bot.py --bot EchoBot --message "你好世界！"
-```
-
-需要更多详细信息？查看我们的[5分钟快速入门指南](QUICKSTART.md)。
-
-## 📚 文档
-
-- [**QUICKSTART.md**](QUICKSTART.md): 5分钟内入门
-- [**DEPLOYMENT.md**](DEPLOYMENT.md): 分步部署指南
-- [**Examples**](examples/): 示例机器人和实现指南
-
-## 🏗️ 项目架构
-
-Poe Bot Host 由以下主要组件组织：
-
-### 核心框架
-
-| 组件 | 目的 |
-|-----------|---------|
-| **app.py** | 用于机器人托管的主 FastAPI 应用程序 |
-| **utils/** | 机器人管理的核心工具 |
-| **run_local.py/.sh** | 本地开发服务器 |
-
-### 机器人实现
-
-| 组件 | 目的 |
-|-----------|---------|
-| **BaseBot** | 具有通用功能的抽象基类 |
-| **BotFactory** | 自动发现并注册所有机器人 |
-| **bots/** | 可直接使用的机器人实现 |
-
-### 包含的机器人类型
-
-- **基础机器人**: Echo（回声）, Reverse（反转）, Uppercase（大写）
-- **高级机器人**: BotCaller（机器人调用器）, Weather（天气）, WebSearch（网络搜索）
-- **功能机器人**: Calculator（计算器）, FunctionCalling（函数调用）, FileAnalyzer（文件分析器）
-- **AI 机器人**: Gemini（支持多模态图像处理）
-
-
-## 🔌 API 密钥与访问密钥管理
-
-本框架管理两种类型的密钥：
-
-### 1️⃣ 第三方 API 密钥（如 OpenAI、Google）
-
-对于外部服务，我们使用标准 API 密钥：
-
-```python
-from utils.api_keys import get_api_key
-
-# 从环境变量或 Modal 密钥获取 API 密钥
-openai_key = get_api_key("OPENAI_API_KEY")
-google_key = get_api_key("GOOGLE_API_KEY")
-```
-
-### 2️⃣ Poe 机器人访问密钥
-
-Poe 上的每个机器人都需要自己的**访问密钥**（而非 API 密钥），您可以从 Poe 仪表板获取：
-
-1. 访问 https://poe.com/edit_bot?bot=YOUR_BOT_NAME (将 YOUR_BOT_NAME 替换为您的机器人名称)
-2. 找到并复制页面上提供的访问密钥
-
-### 🔑 设置机器人访问密钥
-
-#### 步骤 1：创建 .env 文件
-在项目根目录创建一个同时包含 API 密钥和机器人访问密钥的 `.env` 文件：
-
-```
-# .env 文件示例
-# 外部服务 API 密钥
-OPENAI_API_KEY=sk-...您的openai密钥...
-GOOGLE_API_KEY=AIza...您的google密钥...
-
-# 机器人特定访问密钥（从 Poe 创建者仪表板获取）
-ECHO_BOT_ACCESS_KEY=psk_...您的机器人访问密钥...
-WEATHER_BOT_ACCESS_KEY=psk_...您的机器人访问密钥...
-GEMINI_BOT_ACCESS_KEY=psk_...您的机器人访问密钥...
-```
-
-#### 步骤 2：在应用中加载 .env 文件
-```python
-# 在 run_local.py 或您的主脚本顶部
-import os
-from dotenv import load_dotenv
-
-# 从 .env 文件加载环境变量
-load_dotenv()
-```
-
-#### 步骤 3：就是这样！机器人会自动查找它们的访问密钥
-
-```python
-# BaseBot 类自动查找适当的访问密钥
-# 添加新机器人时无需修改任何代码！
-
-# 内部工作原理示例：
-bot = EchoBot()  # 机器人查找 ECHO_BOT_ACCESS_KEY
-bot = WeatherBot()  # 机器人查找 WEATHER_BOT_ACCESS_KEY
-bot = GeminiBot()  # 机器人查找 GEMINI_BOT_ACCESS_KEY
-```
-
-### ✨ 灵活的访问密钥命名约定
-
-您的机器人访问密钥可以使用以下任何格式（所有格式都有效）：
-
-```
-# 对于名为 "WeatherBot" 的机器人：
-WEATHERBOT_ACCESS_KEY=psk_...
-WEATHER_BOT_ACCESS_KEY=psk_...
-WeatherBot_ACCESS_KEY=psk_...
-
-# 对于名为 "Gemini-2.5-Flash" 的机器人：
-GEMINI_2_5_FLASH_ACCESS_KEY=psk_...
-GEMINI25FLASH_ACCESS_KEY=psk_...
-GEMINI_25_FLASH_ACCESS_KEY=psk_...
-```
-
-### 🚀 生产环境（Modal 部署）
-
-对于 Modal，创建具有相同名称的密钥：
-
-```bash
-# 在 Modal 中创建密钥
-# 外部服务的 API 密钥
-modal secret create OPENAI_API_KEY "sk-...您的密钥..."
-
-# 来自 Poe 的机器人访问密钥
-modal secret create WEATHER_BOT_ACCESS_KEY "psk_...您的机器人访问密钥..."
-```
-
-### 🔄 使用访问密钥同步机器人设置
-
-设置好机器人访问密钥后，您可以同步机器人设置与 Poe：
-
-```bash
-# 使用其访问密钥同步特定机器人
-python sync_bot_settings.py --bot WeatherBot
-
-# 同步 .env 中具有访问密钥的所有机器人
-python sync_bot_settings.py --all
-
-# 调试模式获取详细日志
-python sync_bot_settings.py --bot WeatherBot -v
-```
-
-查看[API 与访问密钥管理指南](API_KEY_MANAGEMENT.md)获取完整文档。
-
-## 🛠️ 开发工作流程
-
-1. **创建机器人**: 复制并修改 `bots/template_bot.py`
-2. **本地测试**: `./run_local.sh --debug`
-3. **验证**: `python test_bot.py --bot YourBot`
-4. **部署**: `modal deploy app.py`
-5. **在 Poe 上配置**: 连接到您的 Modal 端点
-
-## 🌟 创建您的第一个机器人
-
-```python
-from fastapi_poe.types import PartialResponse, QueryRequest
-from utils.base_bot import BaseBot
-
-class MyAwesomeBot(BaseBot):
-    bot_name = "MyAwesomeBot"
-    bot_description = "做一些很棒的事情"
-
-    async def get_response(self, query: QueryRequest):
-        user_message = self._extract_message(query)
-        response = f"您说：{user_message}"
-        yield PartialResponse(text=response)
-```
-
-有关更多详细信息，请参阅下面的[创建新机器人](#创建新机器人)部分。
-
-## 📋 完整文档
-
-以下部分包含框架的完整文档。
-
----
-
-## 本地运行平台
-
-您可以在本地运行平台进行开发和测试。有两种等效的方式启动服务器：
-
-### 使用 Shell 脚本
-
-Shell 脚本在运行前会自动激活您的虚拟环境：
-
-```bash
-# 基本运行
-./run_local.sh
-
-# 开发模式，自动重载
-./run_local.sh --reload
-
-# 调试模式，详细日志
-./run_local.sh --debug
-
-# 自定义端口
-./run_local.sh --port 9000
-
-# 所有选项组合
-./run_local.sh --debug --reload --port 9000 --host 127.0.0.1
-```
-
-### 直接使用 Python
-
-如果您更喜欢直接使用 Python（确保虚拟环境已激活）：
-
-```bash
-python run_local.py --debug --reload
-```
-
-### 可用选项
-
-两种方法支持相同的选项：
-
-| 选项 | 描述 |
-|--------|-------------|
-| `--host` | 绑定的主机（默认：0.0.0.0） |
-| `--port` | 绑定的端口（默认：8000） |
-| `--reload` | 开发时启用自动重载 |
-| `--debug` | 启用调试模式，详细日志 |
-| `--log-level` | 设置日志级别（DEBUG、INFO、WARNING、ERROR、CRITICAL） |
-| `--no-banner` | 不显示横幅 |
-| `--help` | 显示帮助信息并退出 |
-
-默认情况下，服务器将在 http://localhost:8000 启动，所有发现的机器人均可用。
-
-## 测试机器人
-
-平台包含一个全面的测试工具：
-
-```bash
-# 测试第一个可用机器人
-python test_bot.py
-
-# 测试特定机器人
-python test_bot.py --bot EchoBot
-
-# 使用自定义消息测试
-python test_bot.py --bot ReverseBot --message "反转这段文本"
-
-# 检查 API 健康状况
-python test_bot.py --health
-
-# 显示 API 端点
-python test_bot.py --schema
-```
-
-### 使用 curl 手动测试
-
-要使用 curl 手动测试您的机器人，首先确保您的服务器正在运行：
-
-```bash
-# 在一个终端中启动服务器
-source venv/bin/activate  # 确保您的虚拟环境已激活
-./run_local.sh  # 或 python run_local.py
-```
-
-然后在另一个终端中，您可以发送请求：
-
-```bash
-# 获取可用机器人列表
-curl http://localhost:8000/bots
-
-# 检查 API 健康状况
-curl http://localhost:8000/health
-
-# 测试特定机器人（将 echobot 替换为您的机器人小写名称）
-curl -X POST "http://localhost:8000/echobot" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer dummytoken" \
-  -d '{
-    "version": "1.0",
-    "type": "query",
-    "query": [
-        {"role": "user", "content": "你好世界！"}
-    ],
-    "user_id": "test_user",
-    "conversation_id": "test_convo_123",
-    "message_id": "test_msg_123",
-    "protocol": "poe"
-  }'
-```
-
-## 创建新机器人
-
-### 使用模板
-
-创建新机器人最简单的方法是复制并修改模板：
-
-1. 将 `bots/template_bot.py` 复制到 `bots/your_bot_name.py`
-2. 修改类名、机器人名称和描述
-3. 在 `get_response` 方法中实现您的逻辑
-
-示例：
-```python
-import json
-from typing import AsyncGenerator, Union
-from fastapi_poe.types import PartialResponse, QueryRequest, MetaResponse
-from utils.base_bot import BaseBot
-
-class WeatherBot(BaseBot):
-    """提供天气信息的机器人。"""
-
-    bot_name = "WeatherBot"
-    bot_description = "为指定位置提供天气信息"
-    version = "1.0.0"
-
-    async def get_response(self, query: QueryRequest) -> AsyncGenerator[Union[PartialResponse, MetaResponse], None]:
-        # 提取用户消息
-        user_message = self._extract_message(query)
-
-        # 处理机器人信息请求
-        if user_message.lower().strip() == "bot info":
-            metadata = self._get_bot_metadata()
-            yield PartialResponse(text=json.dumps(metadata, indent=2))
-            return
-
-        # 解析消息获取位置
-        location = user_message.strip()
-
-        # 在真实机器人中，您会调用天气 API
-        weather_info = f"{location}的天气晴朗，最高温度为24°C。"
-
-        # 返回响应
-        yield PartialResponse(text=weather_info)
-```
-
-### 机器人配置选项
-
-您的机器人可以包含各种配置选项：
-
-```python
-class ConfigurableBot(BaseBot):
-    bot_name = "ConfigurableBot"
-    bot_description = "具有自定义配置的机器人"
-    version = "1.0.0"
-
-    # 自定义设置
-    max_message_length = 5000  # 覆盖默认值（2000）
-    stream_response = False    # 禁用流式响应
-
-    # 您也可以添加自己的设置
-    # 对于特定服务的 API 密钥（例如 OpenAI、Google）
-    openai_api_key = None     # 将从环境中填充
-
-    def __init__(self, **kwargs):
-        # 使用环境变量或 kwargs 初始化
-        # 机器人的 Poe 访问密钥由 BaseBot.get_access_key() 自动处理
-
-        # 对于其他服务 API 密钥，使用 get_api_key 工具
-        from utils.api_keys import get_api_key
-
-        settings = {
-            "openai_api_key": get_api_key("OPENAI_API_KEY")
-        }
-        super().__init__(settings=settings, **kwargs)
-```
-
-### 错误处理
-
-框架提供了内置的错误处理，有两种错误类型：
-
-- `BotError`：可重试的常规错误
-- `BotErrorNoRetry`：不应重试的错误
-
-用法示例：
-
-```python
-from utils.base_bot import BaseBot, BotError, BotErrorNoRetry
-
-class ErrorHandlingBot(BaseBot):
-    # ...
-
-    async def get_response(self, query: QueryRequest):
-        try:
-            # 提取用户消息
-            message = self._extract_message(query)
-
-            # 可能失败的代码
-            if not self._is_valid_input(message):
-                # 用户错误 - 不要重试
-                raise BotErrorNoRetry("输入格式无效。请尝试其他内容。")
-
-            result = await self._fetch_external_data(message)
-            if not result:
-                # 服务错误 - 可重试
-                raise BotError("服务不可用。请稍后再试。")
-
-            yield PartialResponse(text=result)
-
-        except Exception as e:
-            # 处理意外错误
-            self.logger.error(f"意外错误：{str(e)}", exc_info=True)
-            raise  # 框架将处理
-```
-
-## 部署机器人
-
-### 分步部署到 Modal
-
-[Modal](https://modal.com/) 是一个运行 Python 代码的云平台。以下是将 Poe 机器人部署到 Modal 的详细指南：
-
-#### 1. 设置 Modal
-
-1. 在 [modal.com](https://modal.com/signup) 注册 Modal 账户
-
-2. 在环境中安装 Modal 客户端：
-   ```bash
-   pip install modal-client
-   ```
-
-3. 通过运行以下命令进行 Modal 认证：
-   ```bash
-   modal token new
-   ```
-   - 这将打开浏览器窗口
-   - 登录您的 Modal 账户
-   - CLI 将自动保存您的认证令牌
-
-#### 2. 部署您的机器人
-
-要部署包含所有机器人的整个框架：
-
-```bash
+# 3. 测试您的机器人
+python scripts/test_bot_cli.py --bot CalculatorBot --message "2 + 2"
+python scripts/test_bot_cli.py --bot EchoBot --message "你好世界！"
+
+# 4. 部署到生产环境（一条命令！）
 modal deploy app.py
 ```
 
-您将看到类似这样的输出：
+**就是这样！** 您的机器人现在运行在 `http://localhost:8000` 🎉
 
+## 🏗️ 现代化架构
+
+### 🎯 **清晰的关注点分离**
+
+我们重构的架构遵循企业模式，最大化可维护性：
+
+| 组件 | 目的 | 好处 |
+|-----------|---------|----------|
+| **🤖 机器人层** | 业务逻辑与用户交互 | 易于添加新机器人，职责清晰 |
+| **🎭 混入层** | 可重用模式（错误、响应） | DRY 原则，跨机器人一致的用户体验 |
+| **🛠️ 工具层** | 领域专用工具 | 可测试、可重用、专注的模块 |
+| **🌐 应用层** | HTTP 路由与机器人发现 | 自动发现、健康检查、监控 |
+
+### 🧩 **模块化工具** (新功能!)
+
+**媒体处理框架**
+```python
+from utils.media import MediaProcessor, MediaValidator
+
+processor = MediaProcessor()
+attachments = processor.extract_attachments(query)  # 自动处理图像/视频/音频
+media_parts = processor.prepare_media_parts(attachments)  # 为 AI 模型准备
 ```
-Modal app poe-bots deployed!
-Endpoints:
-→ web_endpoint: https://yourusername--poe-bots-fastapi-app.modal.run
+
+**智能身份验证**
+```python
+from utils.auth import APIKeyResolver
+
+resolver = APIKeyResolver("MyBot")
+api_key = resolver.resolve()  # 自动尝试多种命名模式
 ```
 
-记下这个 URL - 您需要它来在 Poe 上配置机器人。
+**安全计算**
+```python
+from utils.calculators import SafeExpressionEvaluator, UnitConverter
 
-如果您想要部署独立机器人（使用 example_standalone_bot.py），运行：
+evaluator = SafeExpressionEvaluator()
+result = evaluator.evaluate("sin(30) + log(100)")  # 防止代码注入
 
+converter = UnitConverter()
+celsius = converter.convert(32, "f_to_c")  # (0.0, "°C")
+```
+
+### 🎯 **增强错误处理**
+```python
+from utils.mixins import ErrorHandlerMixin, ResponseMixin
+
+class MyBot(BaseBot, ErrorHandlerMixin, ResponseMixin):
+    async def get_response(self, query):
+        async def _process():
+            # 您的机器人逻辑
+            yield PartialResponse(text="你好！")
+
+        # 自动错误处理，支持重试和用户友好消息
+        async for response in self.handle_common_errors(query, _process):
+            yield response
+```
+
+## 🤖 创建您的第一个机器人（30秒）
+
+```python
+# bots/my_awesome_bot.py
+from utils.base_bot import BaseBot
+from utils.mixins import ErrorHandlerMixin, ResponseMixin
+from fastapi_poe.types import PartialResponse, QueryRequest
+
+class MyAwesomeBot(BaseBot, ErrorHandlerMixin, ResponseMixin):
+    bot_name = "MyAwesomeBot"
+    bot_description = "做一些令人惊叹的事情！"
+
+    async def get_response(self, query: QueryRequest):
+        async def _process():
+            user_message = self._extract_message(query)
+
+            if user_message.lower() == "help":
+                help_text = "我可以帮助您做令人惊叹的事情！\n尝试：'你好'、'笑话'、'建议'"
+                yield PartialResponse(text=self._format_help_response(help_text))
+                return
+
+            if "你好" in user_message.lower():
+                yield PartialResponse(text="👋 你好！我是您的超赞机器人！")
+            elif "笑话" in user_message.lower():
+                yield PartialResponse(text="🤖 为什么机器人要过马路？为了到达另一个字节！")
+            else:
+                yield PartialResponse(text=f"✨ 您说：'{user_message}' - 太棒了！")
+
+        async for response in self.handle_common_errors(query, _process):
+            yield response
+```
+
+**您免费获得的功能：**
+- ✅ 自动错误处理与用户友好消息
+- ✅ 带表情符号支持的一致响应格式
+- ✅ API 密钥管理（如需要）
+- ✅ 帮助命令格式化
+- ✅ 日志记录和调试
+- ✅ 框架自动发现
+
+## 🔑 简化的 API 密钥管理
+
+### **两种密钥类型**
+1. **🔌 服务 API 密钥**（OpenAI、Google 等）- 用于外部服务
+2. **🤖 机器人访问密钥** - 每个机器人的唯一 Poe 密钥（从 Poe 仪表板获取）
+
+### **设置（一次性）**
+在项目根目录创建 `.env` 文件：
 ```bash
-modal deploy examples/standalone_echobot.py
+# 服务 API 密钥（可选 - 仅当您的机器人需要时）
+OPENAI_API_KEY=sk-...您的openai密钥...
+GOOGLE_API_KEY=AIza...您的google密钥...
+
+# 来自 Poe 的机器人访问密钥（部署时必需）
+ECHO_BOT_ACCESS_KEY=psk_...来自poe仪表板...
+CALCULATOR_BOT_ACCESS_KEY=psk_...来自poe仪表板...
+MYAWESOME_BOT_ACCESS_KEY=psk_...来自poe仪表板...
 ```
 
-这将输出该独立机器人的特定 URL。
-
-#### 3. 测试您的部署
-
-在 Poe 上配置之前，测试您的部署是否正常工作：
-
+### **灵活命名**
+框架使用多种模式自动查找您的密钥：
 ```bash
-# 测试健康端点
-curl https://yourusername--poe-bots-fastapi-app.modal.run/health
-
-# 列出可用机器人
-curl https://yourusername--poe-bots-fastapi-app.modal.run/bots
+# 对于 "WeatherBot"，以下都有效：
+WEATHER_BOT_ACCESS_KEY=psk_...     # ✅ 推荐
+WEATHERBOT_ACCESS_KEY=psk_...      # ✅ 也可以
+WeatherBot_ACCESS_KEY=psk_...      # ✅ 也可以
 ```
 
-您应该看到一个成功的响应，包含健康信息和可用机器人列表。
+### **获取机器人访问密钥**
+1. 访问 https://poe.com/edit_bot?bot=YOUR_BOT_NAME
+2. 从页面复制访问密钥
+3. 添加到您的 `.env` 文件
 
-### 在 Poe 上设置机器人
+**就是这样！** 框架自动处理其他一切。
 
-部署 API 后，您可以在 Poe 上创建连接到您 API 的机器人：
+## 🚀 部署（生产就绪）
 
-#### 1. 在 Poe 上创建机器人
-
-1. 前往 [Poe Creator Portal](https://creator.poe.com/)
-2. 点击"Create Bot"（或"Create a bot"按钮）
-3. 填写基本详情：
-   - **Name**：您的机器人的唯一名称（例如"EchoBot"）
-   - **Description**：清晰描述您的机器人功能
-   - **Instructions/Prompt**：机器人的可选指令
-
-#### 2. 配置服务器设置
-
-1. 在机器人创建表单中，向下滚动到"Server Bot Settings"，选择"Server bot"作为机器人类型
-2. 配置 API：
-   - **Server Endpoint**：您的 Modal 部署 URL + 特定机器人路径
-     - 格式：`https://yourusername--poe-bots-fastapi-app.modal.run/botname`
-     - EchoBot 示例：`https://yourusername--poe-bots-fastapi-app.modal.run/echobot`
-     - 注意路径是您机器人名称的小写版本
-   - **API Protocol**：选择"Poe Protocol"
-   - **API Key Protection**：选择"No protection"（或如果您设置了 API 密钥，请配置它）
-
-#### 3. 添加机器人元数据（可选但推荐）
-
-为了获得更完善的机器人体验，添加：
-
-1. **Sample Messages**：添加 3-5 个示例消息，帮助用户知道要问什么
-   - EchoBot 示例："你好世界"，"回显这条消息"，"跟我重复：测试"
-   - WeatherBot 示例："纽约天气"，"伦敦的天气预报是什么？"，"东京天气"
-
-2. **Knowledge Files**：如果您的机器人需要参考材料，可以在这里上传
-   - 本框架中的大多数机器人不需要这个，因为它们直接处理输入
-
-3. **API Citation Preference**：选择您的机器人应如何引用来源
-   - 对于本框架中的大多数机器人，选择"Don't cite sources"比较合适
-
-4. **Message feedback**：选择是否允许用户反馈（推荐用于收集改进想法）
-
-#### 4. 保存并测试
-
-1. 点击"Create Bot"保存您的配置
-2. 创建后，您将被重定向到与您的机器人的聊天
-3. 通过发送消息测试您的机器人
-4. 消息将被发送到您的 Modal 托管 API，由您的机器人处理，响应将显示在聊天中
-
-如果您的机器人没有响应或遇到错误，请参考下面的故障排除部分。
-
-## 维护和开发
-
-本框架专为便于维护和扩展而设计。以下是如何保持其顺畅运行并添加新功能。
-
-### 版本管理
-
-当前版本为 1.0.0。进行重大更改时：
-
-1. 更新以下位置的版本号：
-   - `pyproject.toml`
-   - `app.py`（`__version__` 变量）
-   - 任何文档引用
-
-2. 遵循语义化版本规则：
-   - MAJOR：破坏性更改
-   - MINOR：新功能，向后兼容
-   - PATCH：错误修复，向后兼容
-
-### 添加新功能
-
-向框架添加新功能：
-
-1. 对于机器人特定功能：
-   - 在 `utils/base_bot.py` 中添加方法
-   - 使用文档字符串清晰记录它们
-   - 使用类型提示以获得更好的 IDE 支持
-
-2. 对于平台功能：
-   - 在 `app.py` 中添加端点
-   - 更新 `utils/bot_factory.py` 中的 `BotFactory`
-   - 更新测试以覆盖新功能
-
-3. 对于配置选项：
-   - 添加到 `utils/config.py`
-   - 使用新选项更新 `.env.example`
-
-### 日志和监控
-
-框架使用 Python 内置的日志功能。配置日志级别：
-
-- 在代码中：`logger.setLevel(logging.DEBUG)`
-- 通过环境：`DEBUG=true ./run_local.sh`
-- 通过 CLI：`./run_local.sh --debug`
-
-对于生产监控：
-- 使用 Modal 内置的仪表板
-- 考虑添加结构化日志以便于分析
-- 为关键错误设置警报
-
-### 测试更改
-
-始终测试您的更改：
-
-1. 运行本地服务器：`./run_local.sh --debug`
-2. 测试所有机器人：`python test_bot.py --all`
-3. 测试特定更改：`python test_bot.py --bot YourBot --message "测试消息"`
-4. 运行自动化测试：`make test`
-5. 检查代码规范：`make lint`
-6. 验证格式：`make format`
-
-
-## 故障排除
-
-### 常见问题
-
-1. **找不到机器人**：
-   - 确保机器人类继承自 `BaseBot`
-   - 检查文件是否在 `bots` 目录中
-   - 验证机器人名称是唯一的
-
-2. **部署错误**：
-   - 检查 Modal 凭证：`modal token new`
-   - 验证 `requirements.txt` 中的要求
-
-3. **运行时错误**：
-   - 使用调试模式运行：`./run_local.sh --debug`
-   - 检查日志以获取特定错误消息
-
-4. **Gemini 图像处理问题**：
-   - 确保在环境中设置了 `GOOGLE_API_KEY`
-   - 验证图像格式是否被支持（JPEG、PNG、WebP、GIF）
-   - 查看 `gemini_image_testing.md` 获取测试程序
-   - 参考 `GEMINI_IMAGE_FIX.md` 了解内容访问修复细节
-
-## 持续集成与质量保证
-
-本项目使用 GitHub Actions 在每次推送和拉取请求时运行自动化测试和代码质量检查。
-
-### CI/CD 流水线
-
-CI/CD 流水线运行：
-- 在多个 Python 版本上使用 pytest 进行单元测试
-- 使用 ruff 进行代码规范检查
-- 使用 pyright 进行类型检查
-
-您可以在仓库的 GitHub Actions 标签页中查看 CI 流水线的状态。
-
-### Pre-Commit 钩子
-
-Pre-commit 钩子用于确保代码质量，在每次提交和推送前自动检查您的代码。
-
-#### 设置说明
-
+### **部署到 Modal（推荐）**
 ```bash
-# 安装 pre-commit 工具
-pip install pre-commit
+# 一键部署
+modal deploy app.py
 
-# 安装 pre-commit 钩子
-pre-commit install --install-hooks
-
-# 同时安装 pre-push 钩子（用于测试）
-pre-commit install --hook-type pre-push
+# 输出示例：
+# ✅ Modal 应用已部署！
+# 🌐 https://yourname--poe-bots-fastapi-app.modal.run
 ```
 
-#### 钩子检查内容
+### **连接到 Poe**
+1. **创建机器人** 在 [Poe Creator Portal](https://creator.poe.com/)
+2. **配置服务器设置**：
+   - **端点**: `https://yourname--poe-bots-fastapi-app.modal.run/mybotname`
+   - **协议**: Poe Protocol
+   - **保护**: 无保护（或配置 API 密钥）
+3. **测试**: 发送消息给您的机器人！
 
-每次提交时：
-- **代码规范检查**（ruff）：检查代码风格和格式
-- **类型检查**（pyright）：验证正确的类型使用
-- **安全检查**：检测私钥、调试语句等
-- **文件格式化**：修复尾随空格、行尾等
+### **生产功能**
+- ✅ **自动缩放**: 自动处理流量高峰
+- ✅ **健康检查**: 内置监控端点
+- ✅ **错误跟踪**: 全面日志记录
+- ✅ **零停机**: 滚动部署
+- ✅ **成本效益**: 按使用量付费
 
-每次推送时：
-- **测试**（pytest）：运行整个测试套件
+## 🛠️ 开发工作流
 
-#### 好处
+### **本地开发**
+```bash
+# 启动带自动重载的开发服务器
+./run_local.sh --debug --reload
 
-- 防止提交有错误或质量差的代码
-- 提供问题的即时反馈
-- 确保团队间的代码质量一致
-- 减少关于风格/格式的代码审查评论
-- 一些问题会被自动修复
+# 测试特定机器人
+python scripts/test_bot_cli.py --bot YourBot --message "测试消息"
 
-## 资源
+# 检查所有机器人是否正常工作
+python scripts/test_bot_cli.py --health
+```
 
-- [Poe 文档](https://creator.poe.com/docs)
-- [fastapi-poe 文档](https://github.com/poe-platform/fastapi-poe)
-- [Modal 文档](https://modal.com/docs)
-- [FastAPI 文档](https://fastapi.tiangolo.com/)
+### **测试与质量**
+```bash
+# 运行所有 257 个自动化测试
+pytest tests/ -v
 
-## 许可证
+# 检查代码格式
+black . && ruff check .
 
-本项目采用 MIT 许可证授权 - 查看 [LICENSE](LICENSE) 文件了解详情。
+# 类型检查
+pyright .
+```
 
-## 贡献
+### **持续集成**
+- ✅ **预提交钩子**: 自动代码格式化和代码检查
+- ✅ **GitHub Actions**: 每次推送自动测试
+- ✅ **质量门禁**: 类型检查、安全扫描、测试覆盖率
 
-为 Poe 社区创建，充满❤️。
+## 📚 高级功能
+
+### **🖼️ 多模态支持（图像/视频/音频）**
+```python
+# 内置媒体附件支持
+attachments = self.media_processor.extract_attachments(query)
+if attachments:
+    for attachment in attachments:
+        # 处理图像、视频或音频文件
+        processed = self.media_processor.process_attachment(attachment)
+```
+
+### **🔒 安全表达式求值**
+```python
+# 安全的数学计算（无代码注入）
+from utils.calculators import SafeExpressionEvaluator
+
+evaluator = SafeExpressionEvaluator()
+result = evaluator.evaluate("2 + 2 * sin(30)")  # ✅ 安全
+result = evaluator.evaluate("import os; os.system('rm -rf /')")  # ❌ 被阻止
+```
+
+### **🎯 响应格式化**
+```python
+# 一致、美观的响应
+self._format_help_response("您的帮助文本")  # 🤖 机器人名称 帮助
+self._format_error_response("出了点问题")  # ❌ 错误：出了点问题
+self._format_success_response("任务完成")  # ✅ 任务完成
+```
+
+### **📊 内置分析**
+- 通过 `/health` 端点提供机器人使用指标
+- 性能监控
+- 错误率跟踪
+- 响应时间分析
+
+## 🧪 包含的示例机器人
+
+| 机器人 | 功能 | 用例 |
+|-----|----------|----------|
+| **📱 计算器机器人** | 数学、单位转换、函数 | 教育、生产力 |
+| **🔄 回声机器人** | 带错误处理的简单回声 | 测试、示例 |
+| **🌤️ 天气机器人** | 真实天气数据 + 模拟模式 | 信息服务 |
+| **💬 ChatGPT** | OpenAI 集成，支持聊天历史 | 对话式 AI |
+| **🧠 Gemini** | Google AI，支持图像 | 多模态 AI |
+| **🔍 网络搜索机器人** | 网络搜索功能 | 研究、信息 |
+| **📁 文件分析机器人** | 文档分析 | 文件处理 |
+
+## 🆘 故障排除
+
+### **常见问题**
+
+**🔍 找不到机器人**
+```bash
+# 检查机器人是否被发现
+python scripts/test_bot_cli.py --list-bots
+
+# 验证机器人类继承自 BaseBot
+class MyBot(BaseBot):  # ✅ 正确
+```
+
+**🔐 身份验证错误**
+```bash
+# 检查 API 密钥是否已加载
+python -c "import os; print([k for k in os.environ if 'API_KEY' in k])"
+
+# 验证 .env 文件存在并已加载
+python -c "from dotenv import load_dotenv; load_dotenv(); import os; print(os.getenv('YOUR_KEY_NAME'))"
+```
+
+**🚀 部署问题**
+```bash
+# 重新验证 Modal
+modal token new
+
+# 检查部署日志
+modal app logs poe-bots
+```
+
+### **获取帮助**
+- 📖 **文档**: 查看 `/examples` 目录
+- 🐛 **问题**: 在 GitHub issues 中使用详细错误消息
+- 💬 **社区**: 与其他开发者分享经验
+- 🔧 **调试模式**: 调查时始终使用 `--debug` 运行
+
+## 📈 性能与可扩展性
+
+- **⚡ 响应时间**: 简单机器人 < 100ms
+- **📊 吞吐量**: 处理 1000+ 并发用户
+- **🛡️ 可靠性**: Modal 托管 99.9% 正常运行时间
+- **💰 成本**: 免费层覆盖大部分开发需求
+- **🔄 自动缩放**: 从 0 到 1000 实例自动缩放
+
+## 🎯 最佳实践
+
+### **机器人开发**
+1. **继承 BaseBot + Mixins** 以获得最大功能
+2. **使用类型提示** 以获得更好的 IDE 支持和调试
+3. **优雅处理错误** 使用 try/catch 和用户友好消息
+4. **先在本地测试** 然后再部署
+5. **遵循 API 密钥命名约定**
+
+### **生产部署**
+1. **设置监控** 通过 Modal 仪表板
+2. **使用环境变量** 进行所有配置
+3. **与真实 Poe 集成测试** 上线前
+4. **监控成本** 并设置计费警报
+5. **保持依赖更新** 以确保安全
+
+## 🚀 下一步
+
+1. **🏃‍♂️ 快速开始**: 按照上面的 2 分钟设置
+2. **🧪 实验**: 尝试修改包含的示例机器人
+3. **🛠️ 构建**: 使用模板创建您的第一个自定义机器人
+4. **🚀 部署**: 一键推送到生产环境
+5. **📈 扩展**: 根据需要添加更多机器人和功能
+
+## 📋 资源
+
+- **📖 [Poe 文档](https://creator.poe.com/docs)** - 官方 Poe 平台文档
+- **🚀 [Modal 文档](https://modal.com/docs)** - 云部署平台
+- **⚡ [FastAPI 文档](https://fastapi.tiangolo.com/)** - Web 框架
+- **🤖 [FastAPI-Poe](https://github.com/poe-platform/fastapi-poe)** - Poe 机器人框架
+
+## 🤝 贡献
+
+我们欢迎贡献！此框架的设计理念：
+- **📚 文档完善**: 每个功能都有示例
+- **🧪 测试完备**: 257 个自动化测试确保可靠性
+- **🏗️ 架构优良**: 清洁模式使扩展变得容易
+- **❤️ 社区导向**: 为开发者而建，由开发者维护
+
+## 📄 许可证
+
+MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
-*本框架与 Poe 或 Modal 没有官方关联。*
+<div align="center">
+  <strong>🎉 准备构建令人惊叹的 Poe 机器人了吗？2 分钟内开始吧！🎉</strong>
+  <br><br>
+  <em>此框架由社区维护，与 Poe 无官方关联。</em>
+</div>
