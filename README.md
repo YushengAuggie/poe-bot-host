@@ -25,7 +25,7 @@ poe_bots/
 │   ├── base_bot.py              # 🏗️ Enhanced base class with auto-discovery
 │   └── bot_factory.py           # 🏭 Intelligent bot registration & management
 ├── 📘 examples/                 # Comprehensive guides & samples
-├── 🧪 tests/                    # 257 automated tests (100% passing)
+├── 🧪 tests/                    # Comprehensive automated test suite
 └── 🚀 Easy deployment           # One-command deployment to Modal/cloud
 ```
 
@@ -213,12 +213,11 @@ modal deploy app.py
    - **Protection**: No protection (or configure API key)
 3. **Test**: Send a message to your bot!
 
-### **Production Features**
-- ✅ **Auto-scaling**: Handles traffic spikes automatically
-- ✅ **Health checks**: Built-in monitoring endpoints
-- ✅ **Error tracking**: Comprehensive logging
-- ✅ **Zero-downtime**: Rolling deployments
-- ✅ **Cost-effective**: Pay only for usage
+### **Key Features**
+- ✅ **Easy deployment**: One-command deployment to Modal
+- ✅ **Health monitoring**: Built-in health check endpoints
+- ✅ **Error handling**: Comprehensive error logging
+- ✅ **Flexible hosting**: Deploy locally or to the cloud
 
 ## 🛠️ Development Workflow
 
@@ -287,17 +286,16 @@ self._format_success_response("Task completed")  # ✅ Task completed
 - Error rate tracking
 - Response time analysis
 
-## 🧪 Included Example Bots
+## 🧪 Example Bots
 
-| Bot | Features | Use Case |
-|-----|----------|----------|
-| **📱 CalculatorBot** | Math, unit conversion, functions | Educational, productivity |
-| **🔄 EchoBot** | Simple echo with error handling | Testing, examples |
-| **🌤️ WeatherBot** | Real weather data + mock mode | Information services |
-| **💬 ChatGPT** | OpenAI integration with chat history | Conversational AI |
-| **🧠 Gemini** | Google AI with image support | Multimodal AI |
-| **🔍 WebSearchBot** | Web search capabilities | Research, information |
-| **📁 FileAnalyzerBot** | Document analysis | File processing |
+The framework includes several ready-to-use bots:
+
+- **Basic bots**: Echo, Calculator, Weather
+- **AI-powered bots**: ChatGPT, Gemini (with multimodal support)
+- **Utility bots**: Web Search, File Analyzer, Function Calling
+- **Template bot**: Use as starting point for new bots
+
+Explore the `bots/` directory to see all available implementations.
 
 ## 🆘 Troubleshooting
 
@@ -338,11 +336,11 @@ modal app logs poe-bots
 
 ## 📈 Performance & Scalability
 
-- **⚡ Response Time**: < 100ms for simple bots
-- **📊 Throughput**: Handles 1000+ concurrent users
-- **🛡️ Reliability**: 99.9% uptime with Modal hosting
-- **💰 Cost**: Free tier covers most development needs
-- **🔄 Auto-scaling**: Scales from 0 to 1000 instances automatically
+- **⚡ Fast Response**: Optimized for quick responses
+- **📊 Scalable**: Built to handle multiple concurrent users
+- **🛡️ Reliable**: Designed for production workloads
+- **💰 Cost-effective**: Efficient resource usage
+- **🔄 Auto-scaling**: Leverages Modal's scaling capabilities
 
 ## 🎯 Best Practices
 
@@ -379,7 +377,7 @@ modal app logs poe-bots
 
 We welcome contributions! This framework is designed to be:
 - **📚 Well-documented**: Every feature has examples
-- **🧪 Well-tested**: 257 automated tests ensure reliability
+- **🧪 Well-tested**: Comprehensive automated tests ensure reliability
 - **🏗️ Well-architected**: Clean patterns make it easy to extend
 - **❤️ Community-focused**: Built for developers, by developers
 
