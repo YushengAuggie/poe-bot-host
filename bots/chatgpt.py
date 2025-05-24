@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import AsyncGenerator, Union
+from typing import AsyncGenerator, Dict, List, Union
 
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 from openai import OpenAI
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 # Initialize client globally
-def get_client():
+def get_client() -> Union[OpenAI, None]:
     try:
         return OpenAI(api_key=get_api_key("OPENAI_API_KEY"))
     except Exception as e:
@@ -30,7 +30,7 @@ class ChatgptBot(BaseBot):
     # Override the bot name
     bot_name = "ChatgptBot"
 
-    def _format_chat_history(self, query: QueryRequest) -> list[dict[str, str]]:
+    def _format_chat_history(self, query: QueryRequest) -> List[Dict[str, str]]:
         """Extract and format chat history from the query for OpenAI API.
 
         Args:
@@ -53,7 +53,9 @@ class ChatgptBot(BaseBot):
             role = (
                 "user"
                 if message.role == "user"
-                else "assistant" if message.role in ["bot", "assistant"] else None
+                else "assistant"
+                if message.role in ["bot", "assistant"]
+                else None
             )
 
             # Skip messages with unsupported roles

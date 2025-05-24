@@ -7,6 +7,8 @@ from typing import Any, AsyncGenerator, Dict, Optional, Tuple, Type, TypeVar, Un
 from fastapi_poe import PoeBot
 from fastapi_poe.types import MetaResponse, PartialResponse, QueryRequest
 
+from .auth import get_bot_access_key
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -92,98 +94,12 @@ class BaseBot(PoeBot):
         logger.info(f"Initialized {self.bot_name} (v{self.version}) at path: {path}")
 
     def get_access_key(self) -> Optional[str]:
-        """Get the access key for this bot from environment variables.
+        """Get the access key for this bot using the APIKeyResolver.
 
         Returns:
             The access key if found, None otherwise
         """
-        # Log all available access keys in environment for debugging
-        all_access_keys = [k for k in os.environ.keys() if "ACCESS_KEY" in k]
-        logger.debug(f"All environment variables with ACCESS_KEY: {all_access_keys}")
-
-        # Try standardized bot naming schemes in order of preference
-        potential_env_vars = []
-
-        # Bot ID format
-        bot_id = self.bot_name.strip().lower()
-
-        # 1. Exact case match with dashes (matches original bot name)
-        potential_env_vars.append(f"{self.bot_name}_ACCESS_KEY")
-
-        # 2. Uppercase with dashes (common env var style)
-        potential_env_vars.append(f"{self.bot_name.upper()}_ACCESS_KEY")
-
-        # 3. Uppercase with underscores instead of dashes (most common env var style)
-        potential_env_vars.append(f"{self.bot_name.upper().replace('-', '_')}_ACCESS_KEY")
-
-        # 4. Original name but with underscores
-        potential_env_vars.append(f"{self.bot_name.replace('-', '_')}_ACCESS_KEY")
-
-        # 5. Original name uppercased with underscores
-        potential_env_vars.append(f"{self.bot_name.replace('-', '_').upper()}_ACCESS_KEY")
-
-        # 6. Just the original name uppercased (without _ACCESS_KEY suffix)
-        potential_env_vars.append(f"{self.bot_name.upper()}")
-
-        # 7. No dashes or underscores, everything concatenated
-        no_special_chars = "".join(c for c in self.bot_name if c.isalnum()).upper()
-        potential_env_vars.append(f"{no_special_chars}_ACCESS_KEY")
-
-        # 8. Special case for common bot naming conventions
-        if "echobot" in bot_id:
-            parts = bot_id.split("-")
-            if len(parts) > 0:
-                potential_env_vars.append(f"{parts[0].upper()}_ECHOBOT_ACCESS_KEY")
-
-        if "gemini" in bot_id:
-            # Try GEMINI_X_Y_FORMAT
-            version_match = None
-            if "2.0" in bot_id or "20" in bot_id:
-                version_match = "2_0"
-            elif "2.5" in bot_id or "25" in bot_id:
-                version_match = "2_5"
-
-            if version_match:
-                for variant in ["FLASH", "PRO", "PRO_EXP"]:
-                    if variant.lower().replace("_", "") in bot_id.replace("-", "").replace("_", ""):
-                        potential_env_vars.append(f"GEMINI_{version_match}_{variant}_ACCESS_KEY")
-                        potential_env_vars.append(f"GEMINI_{version_match}_{variant}_JY_ACCESS_KEY")
-
-        # Try to find fuzzy matches by removing special chars and comparing
-        bot_clean = bot_id.replace("-", "").replace("_", "").replace(".", "")
-        for env_var in all_access_keys:
-            env_clean = env_var.lower().replace("_", "").replace("access", "").replace("key", "")
-            # If the bot name is a significant part of the env var or vice versa
-            if bot_clean in env_clean or env_clean in bot_clean:
-                potential_env_vars.append(env_var)
-
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_env_vars = []
-        for env_var in potential_env_vars:
-            if env_var not in seen:
-                seen.add(env_var)
-                unique_env_vars.append(env_var)
-
-        # Try each possible environment variable format
-        logger.debug(f"Checking these environment variables for {self.bot_name}: {unique_env_vars}")
-        for env_var in unique_env_vars:
-            if env_var in os.environ:
-                logger.debug(f"Found access key using environment variable: {env_var}")
-                return os.environ[env_var]
-
-        # If no match found via specific environment variables,
-        # check if any environment variable contains the bot name
-        for env_var in all_access_keys:
-            if bot_id in env_var.lower():
-                logger.debug(
-                    f"Found potential match by bot name in environment variable: {env_var}"
-                )
-                return os.environ[env_var]
-
-        # No match found
-        logger.debug(f"No access key found for bot {self.bot_name}")
-        return None
+        return get_bot_access_key(self.bot_name)
 
     @classmethod
     def create(cls: Type[T], **kwargs) -> T:

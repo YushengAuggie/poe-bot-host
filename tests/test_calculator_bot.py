@@ -97,7 +97,7 @@ async def test_calculator_help_command(calculator_bot, expression):
 
     # Verify help content is returned
     assert len(responses) == 1
-    assert "Calculator Bot" in responses[0].text
+    assert "CalculatorBot" in responses[0].text  # Updated for new format
     assert "Basic Arithmetic" in responses[0].text
 
 
