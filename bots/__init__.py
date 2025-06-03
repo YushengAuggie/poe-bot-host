@@ -17,14 +17,14 @@ The bot will be automatically discovered and loaded when the app starts.
 from .chatgpt import ChatgptBot
 from .echo_bot import EchoBot
 from .gemini import (
-    GeminiBot,
     Gemini20FlashBot,
-    Gemini20ProBot,
-    Gemini25FlashBot,
-    Gemini25ProExpBot,
     Gemini20FlashExpBot,
     Gemini20FlashThinkingBot,
+    Gemini20ProBot,
     Gemini20ProExpBot,
+    Gemini25FlashBot,
+    Gemini25ProExpBot,
+    GeminiBot,
     GeminiImageGenerationBot,
 )
 from .reverse_bot import ReverseBot

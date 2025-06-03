@@ -38,7 +38,21 @@ class BotFactory:
                 logger.warning(f"Duplicate bot class found: {class_name}, skipping")
 
         # Create bot instances
-        bots = [bot_class() for bot_class in unique_bot_classes]
+        bots = []
+        for bot_class in unique_bot_classes:
+            bot_instance = bot_class()
+
+            # Ensure the bot has its access key set up properly
+            if hasattr(bot_instance, "get_access_key"):
+                access_key = bot_instance.get_access_key()
+                if access_key and not hasattr(bot_instance, "access_key"):
+                    # Set the access key on the bot instance so post_message_attachment can use it
+                    bot_instance.access_key = access_key
+                    logger.info(
+                        f"Set access key for {getattr(bot_instance, 'bot_name', bot_class.__name__)}: {access_key[:10]}..."
+                    )
+
+            bots.append(bot_instance)
 
         # Log the bots that were created
         for bot in bots:

@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import Any, Optional, AsyncGenerator, Dict, Union
+from typing import Any, AsyncGenerator, Dict, Optional, Union
 
 from fastapi_poe.types import (
     MetaResponse,

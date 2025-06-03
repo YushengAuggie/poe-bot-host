@@ -81,6 +81,12 @@ class BaseBot(PoeBot):
         if access_key is None:
             access_key = self.get_access_key()
 
+        # Debug logging for access key
+        if access_key:
+            logger.info(f"Bot {self.bot_name} initialized with access key: {access_key[:10]}...")
+        else:
+            logger.warning(f"Bot {self.bot_name} initialized without access key")
+
         # Initialize the parent class
         super().__init__(path=path, access_key=access_key, **kwargs)
 
@@ -99,7 +105,13 @@ class BaseBot(PoeBot):
         Returns:
             The access key if found, None otherwise
         """
-        return get_bot_access_key(self.bot_name)
+        logger.debug(f"Looking for access key for bot: {self.bot_name}")
+        access_key = get_bot_access_key(self.bot_name)
+        if access_key:
+            logger.debug(f"Found access key for {self.bot_name}: {access_key[:10]}...")
+        else:
+            logger.debug(f"No access key found for bot: {self.bot_name}")
+        return access_key
 
     @classmethod
     def create(cls: Type[T], **kwargs) -> T:

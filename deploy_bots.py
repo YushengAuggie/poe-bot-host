@@ -49,6 +49,7 @@ image = (
         # Include all required API key secrets
         modal.Secret.from_name("OPENAI_API_KEY"),
         modal.Secret.from_name("GOOGLE_API_KEY"),
+        modal.Secret.from_name("GEMINI_IMAGE_GENERATION_BOT_ACCESS_KEY"),
     ],
 )
 @modal.asgi_app()

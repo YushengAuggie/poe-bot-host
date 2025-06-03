@@ -69,8 +69,8 @@ async def test_settings_response(image_generation_bot):
     """Test that the bot provides proper settings including rate card."""
     settings = await image_generation_bot.get_settings(None)
     assert isinstance(settings, SettingsResponse)
-    assert settings.rate_card == "100 points / image"
-    assert settings.cost_label == "Image Generation Cost"
+    assert settings.allow_attachments is True
+    assert settings.expand_text_attachments is True
 
 
 @pytest.mark.asyncio

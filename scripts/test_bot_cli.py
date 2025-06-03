@@ -48,6 +48,37 @@ from utils.config import settings
 logger = logging.getLogger("poe_bots.test_bot")
 
 
+def get_bot_api_key(bot_name: str) -> Optional[str]:
+    """Auto-detect API key for known bots.
+
+    Args:
+        bot_name: Name of the bot
+
+    Returns:
+        API key if found, None otherwise
+    """
+    # Try different API key patterns for the bot
+    bot_upper = bot_name.upper()
+    bot_normalized = bot_upper.replace("-", "_")
+
+    # List of possible environment variable names
+    possible_keys = [
+        f"{bot_normalized}_ACCESS_KEY",
+        f"{bot_name.upper()}_ACCESS_KEY",
+        f"{bot_name}_ACCESS_KEY",
+        "POE_ACCESS_KEY",  # Fallback generic key
+    ]
+
+    for key_name in possible_keys:
+        key_value = os.environ.get(key_name)
+        if key_value:
+            logger.debug(f"Found API key for {bot_name} using {key_name}")
+            return key_value
+
+    logger.debug(f"No API key found for {bot_name}")
+    return None
+
+
 def get_available_bots(base_url: str) -> Dict[str, str]:
     """Get list of available bots from the API.
 
@@ -140,9 +171,11 @@ def test_bot_api(
 
     # Add API key if provided
     if api_key:
+        # Try both common header formats for Poe authentication
+        headers["Authorization"] = f"Bearer {api_key}"
         headers["X-Poe-API-Key"] = api_key
-    # Also try with Authorization header as a fallback
-    elif api_key is None:  # Only add this for the default case
+    else:
+        # Use dummy token for bots without authentication
         headers["Authorization"] = "Bearer dummytoken"  # Since allow_without_key=True in our bot
 
     try:
@@ -278,6 +311,9 @@ def main():
     parser.add_argument("--bot", help="Specific bot to test (omit for auto-select)")
     parser.add_argument("--message", default="Hello, world!", help="Message to send to the bot")
     parser.add_argument("--attachment", help="Path to image file to attach to the message")
+    parser.add_argument(
+        "--api-key", help="API key for authentication (auto-detected for known bots)"
+    )
     parser.add_argument("--schema", action="store_true", help="Show OpenAPI schema")
     parser.add_argument("--health", action="store_true", help="Show health check")
     parser.add_argument("--all", action="store_true", help="Test all available bots")
@@ -362,11 +398,18 @@ def main():
         # Test all bots
         results = {}
         for bot in bots.keys():
+            # Auto-detect API key for each bot
+            api_key = args.api_key or get_bot_api_key(bot)
+
             if args.format == "text":
                 print(f"\nTesting bot: {bot}")
                 print(f"Message: {args.message}")
+                if api_key:
+                    print(f"Using API key: {api_key[:10]}...")
 
-            result = test_bot_api(base_url, bot, args.message, attachment_path=args.attachment)
+            result = test_bot_api(
+                base_url, bot, args.message, api_key=api_key, attachment_path=args.attachment
+            )
             results[bot] = result
 
             if args.format == "text":
@@ -394,12 +437,23 @@ def main():
                 print(f"\nNo bot specified, using first available bot: {bot_to_test}")
 
         if bot_to_test:
+            # Auto-detect or use provided API key
+            api_key = args.api_key or get_bot_api_key(bot_to_test)
+
             if args.format == "text":
                 print(f"\nTesting bot: {bot_to_test}")
                 print(f"Message: {args.message}")
+                if api_key:
+                    print(f"Using API key: {api_key[:10]}...")
+                else:
+                    print("No API key found - using dummy token")
 
             result = test_bot_api(
-                base_url, bot_to_test, args.message, attachment_path=args.attachment
+                base_url,
+                bot_to_test,
+                args.message,
+                api_key=api_key,
+                attachment_path=args.attachment,
             )
 
             if args.format == "json":

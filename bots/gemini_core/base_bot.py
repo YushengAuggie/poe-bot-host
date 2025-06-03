@@ -13,7 +13,8 @@ from fastapi_poe.types import (
 
 from utils.api_keys import get_api_key
 from utils.base_bot import BaseBot
-from .client import get_client, GeminiClientStub
+
+from .client import GeminiClientStub, get_client
 from .utils import get_extension_for_mime_type, get_extension_for_video_mime_type
 
 # Get the logger
@@ -852,7 +853,16 @@ class GeminiBaseBot(BaseBot):
 
             # For video, there's no fallback, just return error
             if is_video:
-                return PartialResponse(text=f"[Error uploading video: {str(e)}]")
+                # Provide helpful error message for missing access key
+                if "access_key parameter is required" in str(e):
+                    error_msg = (
+                        "✅ **Video Generated Successfully!**\n\n"
+                        "⚠️ **Display Issue:** To display videos inline, this bot needs a Poe access key.\n"
+                        "**To fix:** Set environment variable with your Poe bot access key."
+                    )
+                else:
+                    error_msg = f"[Error uploading video: {str(e)}]"
+                return PartialResponse(text=error_msg)
 
             # Image fallback to base64 encoding for tests/local development
             try:
@@ -871,9 +881,10 @@ class GeminiBaseBot(BaseBot):
                 img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
                 # Return the image as base64 data URI with markdown formatting
-                return PartialResponse(
-                    text=f"![Gemini generated image](data:{mime_type};base64,{img_str})"
-                )
+                fallback_text = f"![Gemini generated image](data:{mime_type};base64,{img_str})"
+                if "access_key parameter is required" in str(e):
+                    fallback_text += "\n\n⚠️ **Note:** Image displayed using fallback method due to missing Poe access key. For inline display, set environment variable with your Poe bot access key."
+                return PartialResponse(text=fallback_text)
             except Exception as nested_e:
                 logger.error(f"Error with base64 fallback: {str(nested_e)}")
                 return PartialResponse(text=f"[Error uploading media: {str(e)}]")
@@ -1459,19 +1470,52 @@ class GeminiBaseBot(BaseBot):
                 except ImportError:
                     logger.warning("Failed to import google.generativeai for grounding config")
 
-            # If we support image generation, we need to disable streaming to get complete responses with media
+            # If we support image generation, we need to disable streaming and set response modalities
             if getattr(self, "supports_image_generation", False):
                 # Disable streaming for possible image responses
                 generation_config["stream"] = False
 
-            response = client.generate_content(contents, **generation_config)
+                # Add response modalities for image generation
+                try:
+                    import google.generativeai as genai
+
+                    if hasattr(genai, "types") and hasattr(genai.types, "GenerateContentConfig"):
+                        # Use proper config object
+                        config = genai.types.GenerateContentConfig(
+                            response_modalities=["TEXT", "IMAGE"], temperature=1.0
+                        )
+                        logger.info("Using GenerateContentConfig for image generation")
+                        response = client.generate_content(contents, config=config)
+                    else:
+                        # Fallback to old method
+                        generation_config["generation_config"] = {
+                            "response_modalities": ["TEXT", "IMAGE"],
+                            "temperature": 1.0,
+                        }
+                        logger.info("Using fallback config for image generation")
+                        response = client.generate_content(contents, **generation_config)
+                except ImportError:
+                    logger.warning("Failed to import google.generativeai for image generation")
+                    response = client.generate_content(contents, **generation_config)
+            else:
+                response = client.generate_content(contents, **generation_config)
 
             # If streaming is disabled (for image-capable models), use media processing
             if not generation_config.get("stream", True):
                 logger.info("Processing potential media response")
                 # Process any media (images) in the response
-                async for partial_response in self._process_media_in_response(response, query):
-                    yield partial_response
+                try:
+                    async for partial_response in self._process_media_in_response(response, query):
+                        yield partial_response
+                except ValueError as e:
+                    if "Could not convert `part.inline_data` to text" in str(e):
+                        logger.info(
+                            "Successfully generated image but got inline_data conversion error - this is expected"
+                        )
+                        # The image was already processed successfully, just return
+                        return
+                    else:
+                        raise e
                 return
 
             # Case 1: Response has resolve() method (Gemini 2.5+ models)

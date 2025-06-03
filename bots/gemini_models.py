@@ -60,8 +60,6 @@ class Gemini20FlashExpBot(GeminiBaseBot):
     )
     supports_image_generation = True  # Enable image generation
 
-    # This model can generate images directly in responses
-
 
 class Gemini20FlashThinkingBot(GeminiBaseBot):
     """Gemini 2.0 Flash Thinking Experimental model."""
