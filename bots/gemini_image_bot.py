@@ -24,7 +24,8 @@ class GeminiImageGenerationBot(GeminiBaseBot):
     model_name = "gemini-2.0-flash-preview-image-generation"
     bot_name = "GeminiImageGenerationBot"
     bot_description = (
-        "Generates images from text descriptions using Gemini's image generation capabilities."
+        "Generates and edits images from text descriptions using Gemini's image generation capabilities. "
+        "Supports multi-turn conversations for iterative image editing."
     )
     supports_image_generation = True
 
@@ -139,7 +140,7 @@ class GeminiImageGenerationBot(GeminiBaseBot):
     async def _generate_image(
         self, prompt: str, query: QueryRequest
     ) -> AsyncGenerator[PartialResponse, None]:
-        """Generate an image based on the text prompt using Gemini API."""
+        """Generate an image based on the text prompt using Gemini API with conversation context."""
         try:
             import google.generativeai as genai
 
@@ -160,8 +161,29 @@ class GeminiImageGenerationBot(GeminiBaseBot):
                 text=f'🖌️ Generating image from prompt: "{prompt}"\n\nPlease wait a moment...'
             )
 
-            # Initialize model and make request
+            # Initialize model
             model = genai.GenerativeModel(model_name=self.model_name)
+
+            # Get conversation history for multi-turn support
+            chat_history = self._format_chat_history(query)
+
+            # Prepare content with conversation context
+            if chat_history and len(chat_history) > 1:
+                # Multi-turn conversation - include history
+                logger.info(f"Multi-turn conversation detected with {len(chat_history)} messages")
+
+                # Build conversation history with the new prompt as the latest message
+                conversation_parts = chat_history[:-1]  # All previous messages
+                current_message = {"role": "user", "parts": [{"text": prompt}]}
+                contents = conversation_parts + [current_message]
+
+                # Status message for multi-turn
+                yield PartialResponse(
+                    text="\n\n🔄 **Multi-turn editing**: Building on our previous conversation..."
+                )
+            else:
+                # Single-turn conversation
+                contents = prompt
 
             # Try with proper config first, fallback to simple approach
             try:
@@ -171,13 +193,13 @@ class GeminiImageGenerationBot(GeminiBaseBot):
                     config = types.GenerateContentConfig(
                         response_modalities=["TEXT", "IMAGE"], temperature=1.0
                     )
-                    response = model.generate_content(prompt, config=config, stream=False)
+                    response = model.generate_content(contents, config=config, stream=False)
                 else:
                     raise ImportError("Fallback to older API")
             except (ImportError, AttributeError, Exception):
                 # Fallback to older API
                 response = model.generate_content(
-                    prompt,
+                    contents,
                     generation_config={
                         "response_modalities": ["TEXT", "IMAGE"],
                         "temperature": 1.0,
@@ -270,10 +292,18 @@ class GeminiImageGenerationBot(GeminiBaseBot):
                     text=(
                         "I can generate images based on your text descriptions. "
                         "Simply describe the image you want to generate, and I'll create it for you.\n\n"
-                        "Example prompts:\n"
+                        "🎨 **Features:**\n"
+                        "- **Image Generation**: Create new images from text descriptions\n"
+                        "- **Multi-turn Editing**: Continue our conversation to refine images\n"
+                        "- **Iterative Improvements**: Ask me to modify previously generated images\n\n"
+                        "📝 **Example prompts:**\n"
                         "- A serene mountain lake at sunset with pine trees\n"
                         "- A futuristic cityscape with flying cars and neon lights\n"
                         "- A cute cartoon cat wearing a space helmet\n\n"
+                        "🔄 **Multi-turn editing examples:**\n"
+                        '- "Make the cat bigger"\n'
+                        '- "Change the background to a sunset"\n'
+                        '- "Add a rainbow in the sky"\n\n'
                         "Please note that I cannot generate images that violate Google's content policies."
                     )
                 )
