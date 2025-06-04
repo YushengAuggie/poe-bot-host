@@ -14,7 +14,7 @@
   ],
   "reportMissingImports": false,
   "reportMissingModuleSource": false,
-  "pythonVersion": "3.9",
+  "pythonVersion": "3.10",
   "typeCheckingMode": "standard",
   "strictParameterNoneValue": true,
   "reportUnusedImport": true,

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import AsyncGenerator, Optional, Tuple, Union
+from typing import AsyncGenerator, Union
 
 from fastapi_poe.types import (
     MetaResponse,
@@ -44,7 +44,7 @@ class GeminiImageGenerationBot(GeminiBaseBot):
             f"**To fix:** Set environment variable `GEMINIIMAGEGENERATION_ACCESS_KEY` or `POE_ACCESS_KEY` with your Poe bot access key."
         )
 
-    def _extract_media_data(self, inline_data) -> Union[Tuple[str, bytes], Tuple[None, None]]:
+    def _extract_media_data(self, inline_data) -> tuple[str, bytes] | tuple[None, None]:
         """Extract mime_type and data from inline_data object."""
         mime_type = None
         data_buffer = None
