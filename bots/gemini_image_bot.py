@@ -164,12 +164,27 @@ class GeminiImageGenerationBot(GeminiBaseBot):
             # Initialize model
             model = genai.GenerativeModel(model_name=self.model_name)
 
-            # Get conversation history for multi-turn support
-            chat_history = self._format_chat_history(query)
+            # Extract any image attachments from the query
+            attachments = self._extract_attachments(query)
+            media_parts = self._prepare_media_parts(attachments)
 
-            # Prepare content with conversation context
-            if chat_history and len(chat_history) > 1:
-                # Multi-turn conversation - include history
+            # Get conversation history for multi-turn support (only for text-only conversations)
+            chat_history = self._format_chat_history(query) if not media_parts else None
+
+            # Prepare content with conversation context and attachments
+            if media_parts:
+                # Multimodal content (text + image attachments)
+                logger.info(f"Multimodal image generation with {len(media_parts)} attachments")
+
+                # For multimodal, use the _prepare_content method from base class
+                contents = self._prepare_content(prompt, media_parts, chat_history)
+
+                # Status message for image editing
+                yield PartialResponse(
+                    text="\n\n🎨 **Image editing mode**: Processing your image with the prompt..."
+                )
+            elif chat_history and len(chat_history) > 1:
+                # Multi-turn conversation - include history (text-only)
                 logger.info(f"Multi-turn conversation detected with {len(chat_history)} messages")
 
                 # Build conversation history with the new prompt as the latest message
@@ -182,7 +197,7 @@ class GeminiImageGenerationBot(GeminiBaseBot):
                     text="\n\n🔄 **Multi-turn editing**: Building on our previous conversation..."
                 )
             else:
-                # Single-turn conversation
+                # Single-turn conversation (text-only)
                 contents = prompt
 
             # Try with proper config first, fallback to simple approach
