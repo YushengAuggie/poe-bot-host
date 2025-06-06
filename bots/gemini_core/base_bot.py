@@ -743,28 +743,36 @@ class GeminiBaseBot(BaseBot):
         Returns:
             A dictionary with thinking configuration or None if thinking is not supported/enabled
         """
+        # Temporarily disable thinking budget configuration until we can research
+        # the correct API parameter structure for Gemini 2.5 thinking models
         if not self.supports_thinking or self.thinking_budget is None:
             return None
 
         try:
-            thinking_config = {}
+            # NOTE: The thinking budget feature appears to be model-specific and may not
+            # require explicit configuration in the API call. Many thinking models
+            # automatically apply reasoning without explicit budget parameters.
+            #
+            # For now, we'll return None to avoid API errors while keeping the
+            # infrastructure in place for future implementation once the correct
+            # parameter structure is determined.
 
-            # Set thinking budget (0 disables thinking)
-            if self.thinking_budget == 0:
-                thinking_config["thinking_budget"] = 0
-                logger.info("Thinking disabled (budget set to 0)")
-            else:
-                # Ensure minimum budget of 1024 tokens as per Gemini requirements
-                budget = max(1024, self.thinking_budget)
-                thinking_config["thinking_budget"] = budget
-                logger.info(f"Thinking budget set to {budget} tokens")
+            logger.info(
+                f"Thinking capability detected for {getattr(self, 'model_name', 'unknown')} but configuration disabled pending API research"
+            )
+            return None
 
-            # Set whether to include thoughts in response
-            if self.include_thoughts:
-                thinking_config["include_thoughts"] = True
-                logger.info("Including thoughts in response")
+            # Future implementation would go here once correct parameters are identified:
+            # thinking_config = {}
+            # if self.thinking_budget == 0:
+            #     thinking_config["correct_thinking_param"] = 0
+            # else:
+            #     budget = max(1024, self.thinking_budget)
+            #     thinking_config["correct_thinking_param"] = budget
+            # if self.include_thoughts:
+            #     thinking_config["correct_thoughts_param"] = True
+            # return thinking_config
 
-            return thinking_config
         except Exception as e:
             logger.error(f"Error preparing thinking config: {str(e)}")
             return None
