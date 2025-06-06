@@ -2,13 +2,13 @@
 Tests for the Gemini bot's multimedia handling functionality (images, videos, audio).
 """
 
-from contextlib import nullcontext
+from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi_poe.types import Attachment, PartialResponse, ProtocolMessage, QueryRequest
 
-from bots.gemini import GeminiBaseBot, GeminiBot
+from bots.gemini import GeminiBot
 from tests.google_mock_helper import create_google_genai_mock
 
 # Test data for different media types
@@ -258,40 +258,36 @@ async def test_full_multimodal_query_flow(gemini_bot, sample_query_with_media, m
 
     # Create a simplified wrapper function for get_response to bypass API key check
     # and ensure we use our mock response directly
-    orig_get_response = gemini_bot.get_response
-
     async def mock_get_response_wrapper(*args, **kwargs):
         # Only yield our expected response, bypassing all the complex processing
         yield PartialResponse(text=expected_response)
 
-    # Use a URL mock if needed
-    url_mock = None
-    if media_attachment.content_access_method == "url_only":
-        url_mock = patch("requests.get")
-
-    # Patch with all our mocks
-    with (
+    # Set up patches for all cases
+    patches = [
         patch.dict("sys.modules", mock_modules),
         patch("bots.gemini.get_client", return_value=mock_client),
-        # get_api_key is already mocked in conftest.py
         patch.object(gemini_bot.__class__, "get_response", mock_get_response_wrapper),
-        url_mock if url_mock else nullcontext(),
-    ):
-        # Set up URL mock if needed
-        if media_attachment.content_access_method == "url_only":
-            mock_get = url_mock.__enter__()
-            mock_url_response = MagicMock()
-            mock_url_response.status_code = 200
+    ]
 
-            # Set appropriate test data based on media type
-            if media_attachment.content_type.startswith("image/"):
-                mock_url_response.content = TEST_IMAGE_DATA
-            elif media_attachment.content_type.startswith("video/"):
-                mock_url_response.content = TEST_VIDEO_DATA
-            elif media_attachment.content_type.startswith("audio/"):
-                mock_url_response.content = TEST_AUDIO_DATA
+    # Add URL mock if needed
+    if media_attachment.content_access_method == "url_only":
+        mock_url_response = MagicMock()
+        mock_url_response.status_code = 200
 
-            mock_get.return_value = mock_url_response
+        # Set appropriate test data based on media type
+        if media_attachment.content_type.startswith("image/"):
+            mock_url_response.content = TEST_IMAGE_DATA
+        elif media_attachment.content_type.startswith("video/"):
+            mock_url_response.content = TEST_VIDEO_DATA
+        elif media_attachment.content_type.startswith("audio/"):
+            mock_url_response.content = TEST_AUDIO_DATA
+
+        patches.append(patch("requests.get", return_value=mock_url_response))
+
+    # Apply all patches
+    with ExitStack() as stack:
+        for patch_obj in patches:
+            stack.enter_context(patch_obj)
 
         # Process the query
         responses = []
