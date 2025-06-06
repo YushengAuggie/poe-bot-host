@@ -6,7 +6,7 @@ class GeminiBot(GeminiBaseBot):
 
     model_name = "gemini-2.0-flash"
     bot_name = "GeminiBot"
-    bot_description = "Original Gemini bot using Gemini 2.0 Flash model."
+    bot_description = "Original Gemini bot using Gemini 2.0 Flash model. ✅ Free tier available."
 
 
 # Gemini 2.0 Series
@@ -17,9 +17,7 @@ class Gemini20FlashBot(GeminiBaseBot):
     # Override model for images/multimodal content
     multimodal_model_name = "gemini-1.5-flash-latest"
     bot_name = "Gemini20FlashBot"
-    bot_description = (
-        "Fast and efficient Gemini 2.0 Flash model, optimized for speed and next-gen features."
-    )
+    bot_description = "Fast and efficient Gemini 2.0 Flash model, optimized for speed and next-gen features. ✅ Free tier available."
 
 
 class Gemini20ProBot(GeminiBaseBot):
@@ -36,9 +34,7 @@ class Gemini25FlashBot(GeminiBaseBot):
 
     model_name = "gemini-2.5-flash-preview-04-17"
     bot_name = "Gemini25FlashBot"
-    bot_description = (
-        "Advanced Gemini 2.5 Flash Preview model for adaptive thinking and cost efficiency."
-    )
+    bot_description = "Advanced Gemini 2.5 Flash Preview model for adaptive thinking and cost efficiency. May require paid Google API plan."
 
 
 class Gemini25ProExpBot(GeminiBaseBot):
@@ -46,7 +42,7 @@ class Gemini25ProExpBot(GeminiBaseBot):
 
     model_name = "gemini-2.5-pro-preview-06-05"
     bot_name = "Gemini25ProExpBot"
-    bot_description = "Premium Gemini 2.5 Pro Experimental model for enhanced reasoning, multimodal understanding, and advanced coding."
+    bot_description = "Premium Gemini 2.5 Pro Experimental model for enhanced reasoning, multimodal understanding, and advanced coding. ⚠️ Requires paid Google API plan."
 
 
 # Experimental Models

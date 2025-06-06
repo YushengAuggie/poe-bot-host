@@ -1759,7 +1759,39 @@ class GeminiBaseBot(BaseBot):
             )
         except Exception as e:
             logger.error(f"Error with Gemini API: {str(e)}")
-            yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
+
+            # Provide specific error messages for common issues
+            error_str = str(e).lower()
+            if "429" in str(e) and ("free quota" in error_str or "free tier" in error_str):
+                error_msg = (
+                    f"⚠️ **{self.model_name} requires a paid Google API plan**\n\n"
+                    "Google has removed free tier access for some Gemini models. To use this model:\n"
+                    "1. Visit [Google AI Studio](https://ai.google.dev/)\n"
+                    "2. Set up billing for your Google Cloud project\n"
+                    "3. Enable paid API access for Gemini models\n\n"
+                    "**Alternative:** Try using a free Gemini model like `Gemini20FlashBot` instead."
+                )
+            elif "quota" in error_str or "rate limit" in error_str:
+                error_msg = (
+                    f"⚠️ **API quota exceeded for {self.model_name}**\n\n"
+                    "You've reached the usage limits for this model. Please:\n"
+                    "1. Wait a few minutes and try again\n"
+                    "2. Check your quota limits in [Google AI Studio](https://ai.google.dev/)\n"
+                    "3. Consider upgrading to a paid plan for higher limits"
+                )
+            elif "api key" in error_str or "authentication" in error_str:
+                error_msg = (
+                    "🔑 **API key issue**\n\n"
+                    "Please check that your Google API key is:\n"
+                    "1. Correctly configured in Modal secrets\n"
+                    "2. Valid and not expired\n"
+                    "3. Has access to Gemini API\n\n"
+                    "You can get an API key at [Google AI Studio](https://ai.google.dev/)"
+                )
+            else:
+                error_msg = f"Error: Could not get response from Gemini: {str(e)}"
+
+            yield PartialResponse(text=error_msg)
 
     async def get_settings(self, settings_request: SettingsRequest) -> SettingsResponse:
         """Get bot settings.
