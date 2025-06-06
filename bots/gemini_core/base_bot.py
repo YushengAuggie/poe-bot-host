@@ -15,6 +15,7 @@ from utils.api_keys import get_api_key
 from utils.base_bot import BaseBot
 
 from .client import GeminiClientStub, get_client
+from .model_config import get_model_capabilities
 from .utils import get_extension_for_mime_type, get_extension_for_video_mime_type
 
 # Get the logger
@@ -51,8 +52,15 @@ class GeminiBaseBot(BaseBot):
         # Image generation support - defaults to False unless overridden in subclass
         self.supports_image_generation = getattr(self, "supports_image_generation", False)
 
-        # Determine grounding support based on model
-        self._set_grounding_support()
+        # Get model capabilities from configuration
+        model_capabilities = get_model_capabilities(self.model_name)
+        self.supports_grounding = model_capabilities["supports_grounding"]
+        self.supports_thinking = model_capabilities["supports_thinking"]
+
+        # Log capability detection
+        logger.info(
+            f"Model {self.model_name} capabilities: grounding={self.supports_grounding}, thinking={self.supports_thinking}"
+        )
 
         # Default grounding settings (only effective if the model supports grounding)
         self.grounding_enabled = kwargs.get("grounding_enabled", self.supports_grounding)
@@ -65,62 +73,55 @@ class GeminiBaseBot(BaseBot):
         )
 
         # Thinking budget configuration for supported models
-        self._set_thinking_support()
         self.thinking_budget = kwargs.get(
             "thinking_budget", 8192 if self.supports_thinking else None
         )  # Default 8K tokens
         self.include_thoughts = kwargs.get("include_thoughts", False)
 
-    def _set_grounding_support(self):
-        """Set grounding support based on the model name.
+        # Update bot description with capability info
+        self._update_bot_description(model_capabilities)
 
-        Research indicates that only Pro models fully support grounding.
+    def _update_bot_description(self, model_capabilities: dict):
+        """Update bot description with capability information.
+
+        Args:
+            model_capabilities: Dictionary of model capabilities
         """
-        # Models known to support grounding based on Google's documentation
-        grounding_supported_models = [
-            # Pro models
-            "gemini-2.0-pro",
-            "gemini-2.0-pro-",  # Prefix match for pro experimental models
-            "gemini-2.5-pro",
-            # 2.5 models generally support more advanced features
-            "gemini-2.5-",
-        ]
+        # Add capability indicators to the description
+        capability_indicators = []
 
-        # Check if the current model supports grounding
-        self.supports_grounding = any(
-            self.model_name.startswith(supported_model)
-            for supported_model in grounding_supported_models
-        )
-
-        # Log the grounding support status
-        if self.supports_grounding:
-            logger.info(f"Model {self.model_name} supports grounding")
+        if model_capabilities["free_tier"]:
+            capability_indicators.append("✅ Free tier available")
         else:
-            logger.info(f"Model {self.model_name} does not support grounding")
+            capability_indicators.append("⚠️ Requires paid Google API plan")
 
-    def _set_thinking_support(self):
-        """Set thinking budget support based on the model name.
+        if model_capabilities["supports_grounding"]:
+            capability_indicators.append("🔍 Google Search grounding")
 
-        Based on research, Gemini 2.5 Flash and 2.5 Pro support thinking budget.
-        """
-        # Models known to support thinking budget
-        thinking_supported_models = [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-2.0-flash-thinking",  # Specialized thinking models
-        ]
+        if model_capabilities["supports_thinking"]:
+            capability_indicators.append("🧠 Thinking budget")
 
-        # Check if the current model supports thinking budget
-        self.supports_thinking = any(
-            self.model_name.startswith(supported_model)
-            for supported_model in thinking_supported_models
-        )
+        if model_capabilities["supports_image_generation"]:
+            capability_indicators.append("🎨 Image generation")
 
-        # Log the thinking support status
-        if self.supports_thinking:
-            logger.info(f"Model {self.model_name} supports thinking budget")
-        else:
-            logger.info(f"Model {self.model_name} does not support thinking budget")
+        # Update the description if we have capability indicators
+        if capability_indicators and hasattr(self, "bot_description"):
+            # Remove any existing capability indicators
+            base_description = self.bot_description
+            for indicator in [
+                "✅ Free tier available",
+                "⚠️ Requires paid Google API plan",
+                "⚠️ Requires paid plan",
+                "May require paid Google API plan",
+            ]:
+                base_description = base_description.replace(f" {indicator}", "").replace(
+                    f". {indicator}", ""
+                )
+
+            # Add new capability indicators
+            self.bot_description = (
+                f"{base_description.rstrip('.')}. {' | '.join(capability_indicators)}"
+            )
 
     def _extract_attachments(self, query: QueryRequest) -> list:
         """Extract attachments from the query.
@@ -1770,6 +1771,16 @@ class GeminiBaseBot(BaseBot):
                     "2. Set up billing for your Google Cloud project\n"
                     "3. Enable paid API access for Gemini models\n\n"
                     "**Alternative:** Try using a free Gemini model like `Gemini20FlashBot` instead."
+                )
+            elif "search grounding is not supported" in error_str or "grounding" in error_str:
+                error_msg = (
+                    f"⚠️ **Google Search grounding not supported for {self.model_name}**\n\n"
+                    "This model doesn't support Google Search grounding features. \n"
+                    "**Alternative models with grounding support:**\n"
+                    "- `Gemini20ProBot` (Gemini 2.0 Pro)\n"
+                    "- `Gemini20ProExpBot` (Gemini 2.0 Pro Experimental)\n"
+                    "- `Gemini25ProExpBot` (Gemini 2.5 Pro - requires paid plan)\n\n"
+                    "The bot will work normally without grounding features."
                 )
             elif "quota" in error_str or "rate limit" in error_str:
                 error_msg = (
