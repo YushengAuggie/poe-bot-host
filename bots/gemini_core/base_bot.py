@@ -1762,26 +1762,16 @@ class GeminiBaseBot(BaseBot):
             yield PartialResponse(text=f"Error: Could not get response from Gemini: {str(e)}")
 
     async def get_settings(self, settings_request: SettingsRequest) -> SettingsResponse:
-        """Get bot settings including the rate card.
+        """Get bot settings.
 
         Args:
             settings_request: The settings request
 
         Returns:
-            Settings response with rate card and cost label
+            Settings response with appropriate settings
         """
-        # Set a flat fee of 50 points per message
-        rate_card = "50 points / message"
-        cost_label = "Message Cost"
-
-        # Include settings from the parent class
-        settings = await super().get_settings(settings_request)
-
-        # Add rate card and cost label
-        settings.rate_card = rate_card
-        settings.cost_label = cost_label
-
-        return settings
+        # Use parent class settings
+        return await super().get_settings(settings_request)
 
     async def get_response(
         self, query: QueryRequest
