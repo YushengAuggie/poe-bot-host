@@ -59,6 +59,18 @@ class GeminiBaseBot(BaseBot):
         self.citations_enabled = kwargs.get("citations_enabled", True)
         self.grounding_sources = []
 
+        # Enable Google Search grounding by default for supported models
+        self.google_search_grounding = kwargs.get(
+            "google_search_grounding", self.supports_grounding
+        )
+
+        # Thinking budget configuration for supported models
+        self._set_thinking_support()
+        self.thinking_budget = kwargs.get(
+            "thinking_budget", 8192 if self.supports_thinking else None
+        )  # Default 8K tokens
+        self.include_thoughts = kwargs.get("include_thoughts", False)
+
     def _set_grounding_support(self):
         """Set grounding support based on the model name.
 
@@ -85,6 +97,30 @@ class GeminiBaseBot(BaseBot):
             logger.info(f"Model {self.model_name} supports grounding")
         else:
             logger.info(f"Model {self.model_name} does not support grounding")
+
+    def _set_thinking_support(self):
+        """Set thinking budget support based on the model name.
+
+        Based on research, Gemini 2.5 Flash and 2.5 Pro support thinking budget.
+        """
+        # Models known to support thinking budget
+        thinking_supported_models = [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash-thinking",  # Specialized thinking models
+        ]
+
+        # Check if the current model supports thinking budget
+        self.supports_thinking = any(
+            self.model_name.startswith(supported_model)
+            for supported_model in thinking_supported_models
+        )
+
+        # Log the thinking support status
+        if self.supports_thinking:
+            logger.info(f"Model {self.model_name} supports thinking budget")
+        else:
+            logger.info(f"Model {self.model_name} does not support thinking budget")
 
     def _extract_attachments(self, query: QueryRequest) -> list:
         """Extract attachments from the query.
@@ -360,6 +396,9 @@ class GeminiBaseBot(BaseBot):
         metadata["supports_grounding"] = self.supports_grounding
         metadata["grounding_enabled"] = self.grounding_enabled
         metadata["citations_enabled"] = self.citations_enabled
+        metadata["supports_thinking"] = self.supports_thinking
+        metadata["thinking_budget"] = self.thinking_budget
+        metadata["include_thoughts"] = self.include_thoughts
         metadata["supported_image_types"] = self.supported_image_types
         metadata["supported_video_types"] = self.supported_video_types
         metadata["supported_audio_types"] = self.supported_audio_types
@@ -580,6 +619,53 @@ class GeminiBaseBot(BaseBot):
         self.citations_enabled = enabled
         logger.info(f"Citations {'enabled' if enabled else 'disabled'}")
 
+    def set_google_search_grounding(self, enabled: bool) -> None:
+        """Enable or disable Google Search grounding.
+
+        Args:
+            enabled: Whether Google Search grounding should be enabled
+        """
+        if enabled and not self.supports_grounding:
+            logger.warning(f"Model {self.model_name} does not support grounding. Request ignored.")
+            return
+
+        self.google_search_grounding = enabled
+        logger.info(f"Google Search grounding {'enabled' if enabled else 'disabled'}")
+
+    def set_thinking_budget(self, budget: int) -> None:
+        """Set the thinking budget for supported models.
+
+        Args:
+            budget: Number of tokens for thinking (1-24576, or 0 to disable)
+        """
+        if not self.supports_thinking:
+            logger.warning(
+                f"Model {self.model_name} does not support thinking budget. Request ignored."
+            )
+            return
+
+        if budget < 0 or budget > 24576:
+            logger.warning(f"Invalid thinking budget {budget}. Must be 0-24576. Request ignored.")
+            return
+
+        self.thinking_budget = budget
+        logger.info(f"Thinking budget set to {budget} tokens")
+
+    def set_include_thoughts(self, include: bool) -> None:
+        """Enable or disable including thoughts in the response.
+
+        Args:
+            include: Whether to include the model's thinking process in responses
+        """
+        if not self.supports_thinking:
+            logger.warning(
+                f"Model {self.model_name} does not support thinking budget. Request ignored."
+            )
+            return
+
+        self.include_thoughts = include
+        logger.info(f"Include thoughts {'enabled' if include else 'disabled'}")
+
     def _prepare_grounding_config(self) -> Optional[Dict[str, Any]]:
         """Prepare the grounding configuration for the Gemini API.
 
@@ -592,7 +678,16 @@ class GeminiBaseBot(BaseBot):
             logger.debug(f"Model {self.model_name} does not support grounding")
             return None
 
-        if not self.grounding_enabled or not self.grounding_sources:
+        # Return None if grounding is disabled and Google Search grounding is also disabled
+        if not self.grounding_enabled and not self.google_search_grounding:
+            return None
+
+        # Also return None if grounding is enabled but no sources AND Google Search is disabled
+        if (
+            self.grounding_enabled
+            and not self.grounding_sources
+            and not self.google_search_grounding
+        ):
             return None
 
         try:
@@ -612,22 +707,66 @@ class GeminiBaseBot(BaseBot):
 
                 ground_sources.append(ground_source)
 
-            # Explicitly define the type of the returned dictionary
-            result: Dict[str, Any] = {
-                "groundingEnabled": True,
-                "groundingSources": ground_sources,
-            }
+            # Prepare the grounding configuration
+            result: Dict[str, Any] = {}
+
+            # Add Google Search grounding if enabled
+            if self.google_search_grounding:
+                result["tools"] = ["google_search_retrieval"]
+                logger.info("Enabled Google Search grounding")
+
+            # Add custom grounding sources if available
+            if self.grounding_enabled and ground_sources:
+                result.update(
+                    {
+                        "groundingEnabled": True,
+                        "groundingSources": ground_sources,
+                    }
+                )
+                logger.info(f"Added {len(ground_sources)} custom grounding sources")
 
             # Add citation configuration if enabled
             if self.citations_enabled:
                 result["includeCitations"] = True
 
-            return result
+            return result if result else None
         except ImportError:
             logger.warning("Failed to import google.generativeai for grounding")
             return None
         except Exception as e:
             logger.error(f"Error preparing grounding config: {str(e)}")
+            return None
+
+    def _prepare_thinking_config(self) -> Optional[Dict[str, Any]]:
+        """Prepare the thinking configuration for the Gemini API.
+
+        Returns:
+            A dictionary with thinking configuration or None if thinking is not supported/enabled
+        """
+        if not self.supports_thinking or self.thinking_budget is None:
+            return None
+
+        try:
+            thinking_config = {}
+
+            # Set thinking budget (0 disables thinking)
+            if self.thinking_budget == 0:
+                thinking_config["thinking_budget"] = 0
+                logger.info("Thinking disabled (budget set to 0)")
+            else:
+                # Ensure minimum budget of 1024 tokens as per Gemini requirements
+                budget = max(1024, self.thinking_budget)
+                thinking_config["thinking_budget"] = budget
+                logger.info(f"Thinking budget set to {budget} tokens")
+
+            # Set whether to include thoughts in response
+            if self.include_thoughts:
+                thinking_config["include_thoughts"] = True
+                logger.info("Including thoughts in response")
+
+            return thinking_config
+        except Exception as e:
+            logger.error(f"Error preparing thinking config: {str(e)}")
             return None
 
     def _prepare_content(
@@ -1097,18 +1236,49 @@ class GeminiBaseBot(BaseBot):
                 _ = __import__("google.generativeai")
                 logger.info("google.generativeai successfully imported")
 
-                # Add grounding directly to the generation_config dict
-                # In the API, this nests under generation_config
-                generation_config["generation_config"] = {}
-                logger.info("Added empty generation_config to dict")
+                # Handle Google Search grounding (tools parameter)
+                if "tools" in grounding_config:
+                    generation_config["tools"] = grounding_config["tools"]
+                    logger.info(
+                        f"Added tools to multimodal generation config: {grounding_config['tools']}"
+                    )
 
-                # Add grounding to the generation config dictionary
-                generation_config["grounding_config"] = grounding_config
-                logger.info("Added grounding_config to generation_config")
+                # Handle custom grounding sources
+                if "groundingEnabled" in grounding_config:
+                    # Add grounding directly to the generation_config dict
+                    # In the API, this nests under generation_config
+                    generation_config["generation_config"] = {}
+                    logger.info("Added empty generation_config to dict")
+
+                    # Add grounding to the generation config dictionary
+                    generation_config["grounding_config"] = {
+                        k: v
+                        for k, v in grounding_config.items()
+                        if k not in ["tools"]  # Exclude tools from grounding_config
+                    }
+                    logger.info("Added grounding_config to generation_config")
             except ImportError:
                 logger.warning("Failed to import google.generativeai for grounding config")
             except Exception as e:
                 logger.warning(f"Error setting up grounding configuration: {str(e)}")
+
+        # Apply thinking configuration if available
+        thinking_config = self._prepare_thinking_config()
+        if thinking_config:
+            try:
+                _ = __import__("google.generativeai")
+
+                # Initialize generation_config if not already done
+                if "generation_config" not in generation_config:
+                    generation_config["generation_config"] = {}
+
+                # Add thinking configuration
+                generation_config["thinking_config"] = thinking_config
+                logger.info(f"Added thinking config to multimodal generation: {thinking_config}")
+            except ImportError:
+                logger.warning("Failed to import google.generativeai for thinking config")
+            except Exception as e:
+                logger.warning(f"Error setting up thinking configuration: {str(e)}")
 
         try:
             # Check if we have valid contents before sending to the API
@@ -1461,14 +1631,45 @@ class GeminiBaseBot(BaseBot):
                     # Just make sure the module is available
                     _ = __import__("google.generativeai")
 
-                    # Create or use existing generation config dictionary
+                    # Handle Google Search grounding (tools parameter)
+                    if "tools" in grounding_config:
+                        generation_config["tools"] = grounding_config["tools"]
+                        logger.info(
+                            f"Added tools to generation config: {grounding_config['tools']}"
+                        )
+
+                    # Handle custom grounding sources
+                    if "groundingEnabled" in grounding_config:
+                        # Create or use existing generation config dictionary
+                        if "generation_config" not in generation_config:
+                            generation_config["generation_config"] = {}
+
+                        # Add grounding to the generation config at the appropriate level
+                        generation_config["grounding_config"] = {
+                            k: v
+                            for k, v in grounding_config.items()
+                            if k not in ["tools"]  # Exclude tools from grounding_config
+                        }
+                except ImportError:
+                    logger.warning("Failed to import google.generativeai for grounding config")
+
+            # Apply thinking configuration if available
+            thinking_config = self._prepare_thinking_config()
+            if thinking_config:
+                try:
+                    _ = __import__("google.generativeai")
+
+                    # Initialize generation_config if not already done
                     if "generation_config" not in generation_config:
                         generation_config["generation_config"] = {}
 
-                    # Add grounding to the generation config at the appropriate level
-                    generation_config["grounding_config"] = grounding_config
+                    # Add thinking configuration
+                    generation_config["thinking_config"] = thinking_config
+                    logger.info(f"Added thinking config to streaming generation: {thinking_config}")
                 except ImportError:
-                    logger.warning("Failed to import google.generativeai for grounding config")
+                    logger.warning("Failed to import google.generativeai for thinking config")
+                except Exception as e:
+                    logger.warning(f"Error setting up thinking configuration: {str(e)}")
 
             # If we support image generation, we need to disable streaming and set response modalities
             if getattr(self, "supports_image_generation", False):
