@@ -1272,8 +1272,8 @@ class GeminiBaseBot(BaseBot):
                 if "generation_config" not in generation_config:
                     generation_config["generation_config"] = {}
 
-                # Add thinking configuration
-                generation_config["thinking_config"] = thinking_config
+                # Add thinking configuration to the generation_config dict
+                generation_config["generation_config"].update(thinking_config)
                 logger.info(f"Added thinking config to multimodal generation: {thinking_config}")
             except ImportError:
                 logger.warning("Failed to import google.generativeai for thinking config")
@@ -1663,8 +1663,8 @@ class GeminiBaseBot(BaseBot):
                     if "generation_config" not in generation_config:
                         generation_config["generation_config"] = {}
 
-                    # Add thinking configuration
-                    generation_config["thinking_config"] = thinking_config
+                    # Add thinking configuration to the generation_config dict
+                    generation_config["generation_config"].update(thinking_config)
                     logger.info(f"Added thinking config to streaming generation: {thinking_config}")
                 except ImportError:
                     logger.warning("Failed to import google.generativeai for thinking config")
