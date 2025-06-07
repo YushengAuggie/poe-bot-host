@@ -8,7 +8,7 @@ instead of hardcoded patterns.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -188,35 +188,6 @@ class BotConfig:
 
         return variants
 
-    def get_bot_metadata(self, bot_name: str) -> Dict[str, Any]:
-        """Get metadata for a specific bot."""
-        return self._config["bot_metadata"].get(bot_name, {})
-
-    def requires_access_key(self, bot_name: str) -> bool:
-        """Check if a bot requires an access key."""
-        metadata = self.get_bot_metadata(bot_name)
-        return metadata.get("requires_access_key", False)
-
-    def add_bot_config(self, bot_name: str, config: Dict[str, Any]):
-        """Add or update configuration for a specific bot."""
-        if "access_key_patterns" in config:
-            self._config["access_key_patterns"][bot_name] = config["access_key_patterns"]
-
-        if "metadata" in config:
-            self._config["bot_metadata"][bot_name] = config["metadata"]
-
-    def save_custom_config(self, config_file: Optional[str] = None):
-        """Save current configuration to a file."""
-        if config_file is None:
-            config_file = os.path.join(os.path.dirname(__file__), "bot_config.json")
-
-        try:
-            with open(config_file, "w") as f:
-                json.dump(self._config, f, indent=2)
-            logger.info(f"Saved bot configuration to {config_file}")
-        except Exception as e:
-            logger.error(f"Failed to save config: {e}")
-
 
 # Global instance
 _bot_config = None
@@ -233,13 +204,3 @@ def get_bot_config() -> BotConfig:
 def get_access_key_patterns(bot_name: str) -> List[str]:
     """Convenience function to get access key patterns for a bot."""
     return get_bot_config().get_access_key_patterns(bot_name)
-
-
-def get_bot_metadata(bot_name: str) -> Dict[str, Any]:
-    """Convenience function to get bot metadata."""
-    return get_bot_config().get_bot_metadata(bot_name)
-
-
-def requires_access_key(bot_name: str) -> bool:
-    """Convenience function to check if bot requires access key."""
-    return get_bot_config().requires_access_key(bot_name)

@@ -94,15 +94,6 @@ class APIKeyResolver:
         """
         return [k for k in os.environ.keys() if "ACCESS_KEY" in k or "API_KEY" in k]
 
-    def get_tried_patterns(self) -> List[str]:
-        """
-        Get list of patterns that would be tried for this bot.
-
-        Returns:
-            List of environment variable patterns
-        """
-        return get_access_key_patterns(self.bot_name)
-
 
 def get_bot_access_key(bot_name: str) -> Optional[str]:
     """
@@ -116,28 +107,3 @@ def get_bot_access_key(bot_name: str) -> Optional[str]:
     """
     resolver = APIKeyResolver(bot_name)
     return resolver.resolve()
-
-
-def debug_access_key_resolution(bot_name: str) -> dict:
-    """
-    Debug function to show access key resolution process.
-
-    Args:
-        bot_name: The name of the bot
-
-    Returns:
-        Dictionary with debug information
-    """
-    resolver = APIKeyResolver(bot_name)
-
-    patterns = resolver.get_tried_patterns()
-    available_keys = resolver.get_available_keys()
-    found_key = resolver.resolve()
-
-    return {
-        "bot_name": bot_name,
-        "patterns_tried": patterns,
-        "available_env_keys": available_keys,
-        "resolved_key": found_key[:10] + "..." if found_key else None,
-        "resolution_successful": found_key is not None,
-    }
