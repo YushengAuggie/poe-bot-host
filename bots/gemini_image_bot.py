@@ -11,7 +11,6 @@ from fastapi_poe.types import (
 )
 
 from utils.api_keys import get_api_key
-from utils.auth import debug_access_key_resolution
 from utils.bot_config import get_access_key_patterns
 
 from .gemini_core.base_bot import GeminiBaseBot
@@ -49,7 +48,7 @@ class GeminiImageGenerationBot(GeminiBaseBot):
             f"**For local testing:** The image was generated but can't be displayed due to missing access key configuration.\n\n"
             f"**To fix:** Set one of these environment variables with your Poe bot access key:\n"
             f"- `{'` or `'.join(primary_patterns)}`\n\n"
-            f"**Debug info:** Run debug mode to see all {len(patterns)} patterns tried."
+            f"**Note:** {len(patterns)} different patterns are automatically tried for access key resolution."
         )
 
     def _extract_media_data(self, inline_data) -> tuple[str, bytes] | tuple[None, None]:
@@ -327,45 +326,7 @@ class GeminiImageGenerationBot(GeminiBaseBot):
                         '- "Make the cat bigger"\n'
                         '- "Change the background to a sunset"\n'
                         '- "Add a rainbow in the sky"\n\n'
-                        "🐛 **Troubleshooting:**\n"
-                        '- Type "debug access key" to check access key configuration\n\n'
                         "Please note that I cannot generate images that violate Google's content policies."
-                    )
-                )
-                return
-
-            # Handle debug access key request
-            if user_message.lower().strip() == "debug access key":
-                debug_info = debug_access_key_resolution(self.bot_name)
-                yield PartialResponse(
-                    text=(
-                        f"🐛 **Access Key Debug Info for {self.bot_name}:**\n\n"
-                        f"**Resolution Status:** {'✅ Success' if debug_info['resolution_successful'] else '❌ Failed'}\n"
-                        f"**Found Key:** {debug_info['resolved_key'] or 'None'}\n\n"
-                        f"**Patterns Tried ({len(debug_info['patterns_tried'])}):**\n"
-                        + "\n".join(
-                            f"- `{pattern}`" for pattern in debug_info["patterns_tried"][:10]
-                        )
-                        + (
-                            f"\n- ... and {len(debug_info['patterns_tried']) - 10} more"
-                            if len(debug_info["patterns_tried"]) > 10
-                            else ""
-                        )
-                        + f"\n\n**Available Keys in Environment ({len(debug_info['available_env_keys'])}):**\n"
-                        + (
-                            (
-                                "\n".join(
-                                    f"- `{key}`" for key in debug_info["available_env_keys"][:5]
-                                )
-                                + (
-                                    f"\n- ... and {len(debug_info['available_env_keys']) - 5} more"
-                                    if len(debug_info["available_env_keys"]) > 5
-                                    else ""
-                                )
-                            )
-                            if debug_info["available_env_keys"]
-                            else "None found"
-                        )
                     )
                 )
                 return
